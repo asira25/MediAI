@@ -342,6 +342,13 @@
             value="{{ suggested_time }}"
           />
 
+          <input
+            type="hidden"
+            name="selected_date"
+            id="hiddenSelectedDate"
+            value="{{ selected_date }}"
+          />
+
           <!-- MODIFY -->
           <div class="summary-card mb-4">
             <div class="summary-title">Modify Appointment</div>
@@ -360,13 +367,7 @@
               <option
                 value="{{ doctor.id }}"
                 data-name="{{ doctor.name }}"
-                {%
-                if
-                doctor.id|string=""
-                ="doctor_id|string"
-                %}selected{%
-                endif
-                %}
+                {% if doctor.id|string == doctor_id|string %}selected{% endif %}
               >
                 {{ doctor.name }} - {{ doctor.specialist }}
               </option>
@@ -549,15 +550,7 @@
               <button
                 type="submit"
                 class="confirm-btn"
-                {%
-                if
-                available_slots|length=""
-                ="0"
-                %}
-                disabled
-                {%
-                endif
-                %}
+                {% if available_slots|length == 0 %}disabled{% endif %}
               >
                 Confirm Booking
               </button>
@@ -613,6 +606,8 @@
         document.getElementById("selectedDateText").innerHTML = selectedDate;
 
         document.getElementById("recommendedDate").innerHTML = selectedDate;
+
+        document.getElementById("hiddenSelectedDate").value = selectedDate;
       }
       document
         .getElementById("doctorSelect")

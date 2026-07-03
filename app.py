@@ -1956,6 +1956,30 @@ def appointment_slot():
 
     )
 
+    # =========================
+    # RECALCULATE SLOTS FOR SELECTED_DATE
+    # =========================
+    # Ensure available_slots match the selected_date being displayed
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("""
+        SELECT *
+        FROM appointments
+        WHERE clinic_id=%s
+        AND date=%s
+    """, (
+        clinic_info['id'],
+        selected_date
+    ))
+    selected_date_appointments = cursor.fetchall()
+
+    available_slots = get_available_time_slots(
+        recommended_doctor['id'],
+        selected_date,
+        selected_date_appointments,
+        clinic_info['opening_time'],
+        clinic_info['closing_time']
+    )
+
     conn.close()
 
 
@@ -1988,7 +2012,7 @@ def appointment_slot():
         estimated_wait=estimated_wait,
         consultation_duration=consultation_duration,
         recommendation_reason=recommendation_reason,
-        recommended_date = selected_date,
+        recommended_date=recommended_date,
         today=datetime.now().strftime('%Y-%m-%d')
     )
 
