@@ -2944,23 +2944,6 @@ def live_queue(appointment_id):
         appointment["status"] = "Missed"
 
 
-    # =========================
-    # CHECK-IN AVAILABILITY
-    # =========================
-
-    checkin_start = appointment_datetime - timedelta(minutes=15)
-
-    allow_checkin = (
-
-        appointment["status"] == "Booked"
-
-        and
-
-        checkin_start <= current_datetime <= appointment_datetime
-
-    )
-
-
     cursor.execute("""
 
         SELECT consultation_duration
@@ -3371,9 +3354,6 @@ def live_queue(appointment_id):
 
         "queue_position": queue_position,
 
-        "allow_checkin": allow_checkin,
-
-       
     })
 
 # =========================
@@ -3442,164 +3422,6 @@ def live_queue_page():
         appointment=appointment,
 
         is_today=is_today
-
-    )
-
-# =========================
-# PATIENT CHECK IN
-# =========================
-@app.route('/check_in/<int:appointment_id>', methods=['POST'])
-def check_in(appointment_id):
-
-    if 'patient_id' not in session:
-
-        return redirect(url_for('patient_login'))
-
-    patient_id = session['patient_id']
-
-    conn = get_db_connection()
-    cursor = conn.cursor(dictionary=True)
-
-    # =========================
-    # GET APPOINTMENT
-    # =========================
-    cursor.execute("""
-
-        SELECT *
-
-        FROM appointments
-
-        WHERE id=%s
-        AND patient_id=%s
-
-    """, (
-
-        appointment_id,
-        patient_id
-
-    ))
-
-    appointment = cursor.fetchone()
-
-    if not appointment:
-
-        conn.close()
-
-        flash(
-
-            "Appointment not found.",
-
-            "danger"
-
-        )
-
-        return redirect(
-            url_for("patient_dashboard")
-        )
-
-    # =========================
-    # VALIDATE STATUS
-    # =========================
-    if appointment['status'] != "Booked":
-
-        conn.close()
-
-        flash(
-
-            "This appointment can no longer be checked in.",
-
-            "warning"
-
-        )
-
-        return redirect(
-
-            url_for(
-                "live_queue_page",
-                appointment_id=appointment_id
-            )
-
-        )
-
-
-    # =========================
-    # VALIDATE CHECK-IN TIME
-    # =========================
-
-    appointment_datetime = datetime.combine(
-
-        appointment["date"],
-        appointment["time"]
-
-    )
-
-    current_datetime = datetime.now()
-
-    checkin_start = appointment_datetime - timedelta(minutes=15)
-
-    if (
-
-        current_datetime < checkin_start
-        or current_datetime > appointment_datetime
-
-    ):
-
-        conn.close()
-
-        flash(
-
-            "Check-in is only available from 15 minutes before your appointment until the appointment time.",
-
-            "warning"
-
-        )
-
-        return redirect(
-
-            url_for(
-                "live_queue_page",
-                appointment_id=appointment_id
-            )
-
-        )
-
-
-
-    # =========================
-    # UPDATE STATUS
-    # =========================
-    cursor.execute("""
-
-        UPDATE appointments
-
-        SET status='Waiting'
-
-        WHERE id=%s
-
-    """, (
-
-        appointment_id,
-
-    ))
-
-    conn.commit()
-
-    conn.close()
-
-    flash(
-
-        "Check-in successful. Please wait for your turn.",
-
-        "success"
-
-    )
-
-    return redirect(
-
-        url_for(
-            "live_queue_page",
-            appointment_id=appointment_id
-        )
 
     )
 
