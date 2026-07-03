@@ -489,15 +489,6 @@
 <!-- STATUS -->
 <div id="status_box"></div>
 
-<!-- =========================
-CHECK IN
-========================= -->
-
-<div
-    id="checkin_section"
-    class="text-center mt-4">
-</div>
-
 <!-- QUEUE INFO -->
 <div
     class="queue-info"
@@ -726,38 +717,6 @@ async function fetchQueue(){
     document.getElementById("appointment_time").innerHTML =
         data.time;
 
-// =========================
-// CHECK IN BUTTON
-// =========================
-
-let checkinHTML = "";
-
-if(data.allow_checkin){
-
-    checkinHTML = `
-
-        <form action="/check_in/${appointmentId}" method="POST">
-
-            <button
-                class="btn btn-primary btn-lg">
-
-                <i class="fa fa-check-circle"></i>
-
-                Check In
-
-            </button>
-
-        </form>
-
-    `;
-
-}
-
-document.getElementById("checkin_section").innerHTML =
-    checkinHTML;
-
-
-
 
     // STATS
     document.getElementById("position").innerHTML =
@@ -843,8 +802,6 @@ document.getElementById("your_queue").innerHTML =
 
         document.getElementById("progress_fill").style.width =
             "0%";
-
-        document.getElementById("checkin_section").innerHTML = "";
 
         document.getElementById("status_box").innerHTML = `
 
