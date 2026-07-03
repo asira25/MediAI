@@ -821,13 +821,64 @@ document.getElementById("your_queue").innerHTML =
         `;
 
     }
-
-
-
-
     
     // =========================
-    // IN CONSULTATION
+    // MISSED APPOINTMENT
+    // =========================
+    else if(data.status === "Missed"){
+
+        document.querySelector(".queue-card").style.border =
+            "4px solid #dc2626";
+
+        document.getElementById("status_badge").innerHTML =
+            "MISSED";
+
+        document.getElementById("status_badge").style.background =
+            "#dc2626";
+
+        document.getElementById("ahead").innerHTML = 0;
+
+        document.getElementById("progress_text").innerHTML =
+            "0%";
+
+        document.getElementById("progress_fill").style.width =
+            "0%";
+
+        document.getElementById("checkin_section").innerHTML = "";
+
+        document.getElementById("status_box").innerHTML = `
+
+            <div class="alert alert-danger mt-4 text-center">
+
+                <h2>
+                    ⚠️ Appointment Missed
+                </h2>
+
+                <p class="mb-0">
+                    You missed your scheduled appointment.
+                    Please contact the clinic to reschedule.
+                </p>
+
+            </div>
+
+        `;
+
+        document.getElementById("queue_info").innerHTML = `
+
+            <div class="alert alert-warning mt-4 text-center">
+
+                <p class="mb-0">
+                    This appointment has been marked as missed and is no longer active in the queue.
+                </p>
+
+            </div>
+
+        `;
+
+    }
+
+
+    // =========================
     // =========================
     else if(data.status === "In-Consultation"){
 
