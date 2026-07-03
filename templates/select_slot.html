@@ -199,6 +199,18 @@
           Review AI recommendations and confirm your appointment booking
         </p>
 
+        <!-- CLINIC CLOSED BANNER -->
+        {% if clinic_is_closed %}
+        <div class="alert alert-info d-flex align-items-start gap-2 mb-4" role="alert">
+          <span style="font-size:20px;">🕐</span>
+          <div>
+            <strong>Clinic is currently closed</strong> &mdash; no worries!<br>
+            We've automatically found the <strong>next available appointment slot</strong> for you.
+            You can adjust the date and time below.
+          </div>
+        </div>
+        {% endif %}
+
         <!-- PATIENT -->
         <div class="section-box patient-box">
           <h6 class="fw-bold text-primary">Patient Information</h6>

@@ -203,6 +203,23 @@
             color:#b0b0b0;
         }
 
+        /* Closed but bookable clinics get an amber highlight on hover/select */
+        .clinic-card.closed-bookable:hover{
+            border:2px solid #f59e0b;
+            background:#fffbeb;
+        }
+
+        .clinic-card.closed-bookable.selected{
+            border:2px solid #f59e0b;
+            background:#fef9c3;
+        }
+
+        /* Truly unavailable clinics are not clickable */
+        .clinic-card-disabled{
+            cursor:not-allowed;
+            opacity:0.65;
+        }
+
     </style>
 </head>
 
@@ -323,9 +340,12 @@
 
                 {% for clinic in clinics %}
 
-                    <div class="clinic-card"
+                    <div class="clinic-card
+                        {% if clinic.display_status == 'Closed' %} closed-bookable
+                        {% elif clinic.display_status == 'Temporary Closed' or clinic.display_status == 'Permanently Closed' %} clinic-card-disabled
+                        {% endif %}"
 
-                    {% if clinic.display_status == 'Open' %}
+                    {% if clinic.display_status == 'Open' or clinic.display_status == 'Closed' %}
 
                     onclick="selectClinic(this, '{{ clinic.clinic_name }}')"
 
@@ -371,9 +391,10 @@
 
 {% elif clinic.display_status == "Closed" %}
 
-<div class="alert alert-danger mt-2">
-    Outside operating hours.
-    Booking is unavailable.
+<div class="alert alert-info mt-2">
+    <i class="fa-solid fa-clock"></i>
+    Outside operating hours &mdash;
+    you can still book the <strong>next available slot</strong>.
 </div>
 
 {% endif %}
@@ -607,8 +628,8 @@
 
                         <div class="text-center mt-2 text-muted">
 
-                            Only clinics that are currently open
-                            can be selected.
+                            Select an open or closed clinic to book
+                            your next available appointment.
 
                         </div>
 

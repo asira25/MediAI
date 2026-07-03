@@ -1141,6 +1141,9 @@ def appointment_slot():
 
     )
 
+    # Track whether clinic is currently outside operating hours
+    clinic_is_closed = False
+
     if clinic_info:
 
         # =========================
@@ -1172,6 +1175,7 @@ def appointment_slot():
 
         # =========================
         # OPERATING HOURS CHECK
+        # (Soft check — booking for future slots is still allowed)
         # =========================
         if not (
 
@@ -1181,21 +1185,20 @@ def appointment_slot():
 
         ):
 
-            conn.close()
+            # Clinic is currently closed but we allow booking for next available slot
+            clinic_is_closed = True
 
-            return """
-
-            Booking unavailable.
-
-            This clinic is currently closed.
-
-            """
+    # When clinic is closed, default to tomorrow so the AI finds future slots
+    if clinic_is_closed:
+        default_date = (datetime.now() + timedelta(days=1)).strftime('%Y-%m-%d')
+    else:
+        default_date = datetime.now().strftime('%Y-%m-%d')
 
     selected_date = request.form.get(
 
         'selected_date',
 
-        datetime.now().strftime('%Y-%m-%d')
+        default_date
 
     )
 
@@ -2013,7 +2016,8 @@ def appointment_slot():
         consultation_duration=consultation_duration,
         recommendation_reason=recommendation_reason,
         recommended_date=recommended_date,
-        today=datetime.now().strftime('%Y-%m-%d')
+        today=datetime.now().strftime('%Y-%m-%d'),
+        clinic_is_closed=clinic_is_closed
     )
 
 
