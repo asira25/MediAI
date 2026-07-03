@@ -2179,35 +2179,10 @@ def confirm_booking():
         return redirect(url_for("booking"))
 
     # -------------------------
-    # Operating hours
+    # Operating hours check removed:
+    # Patients may book future slots even when clinic is currently closed.
+    # Only Temporary/Permanently Closed clinics are hard-blocked above.
     # -------------------------
-
-    current_time = timedelta(
-
-    hours=datetime.now().hour,
-    minutes=datetime.now().minute,
-    seconds=datetime.now().second
-
-)
-
-    opening_time = clinic_status["opening_time"]
-    closing_time = clinic_status["closing_time"]
-
-    if opening_time and closing_time:
-
-        if not (opening_time <= current_time <= closing_time):
-
-            conn.close()
-
-            flash(
-
-                "This clinic is currently closed. Please book during operating hours.",
-
-                "warning"
-
-            )
-
-            return redirect(url_for("booking"))
 
 
     # =========================
