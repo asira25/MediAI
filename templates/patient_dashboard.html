@@ -1,0 +1,907 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+
+<meta charset="UTF-8">
+
+<title>Patient Dashboard - MEDIAI</title>
+
+<!-- Bootstrap -->
+<link
+href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
+rel="stylesheet">
+
+
+
+<!-- Font Awesome -->
+<link
+rel="stylesheet"
+href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"/>
+
+<style>
+
+body{
+    background:#eef2f7;
+    font-family:Arial, sans-serif;
+}
+
+.topbar{
+    background:white;
+    padding:15px 40px;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    border-bottom:1px solid #ddd;
+}
+
+.profile-section{
+    display:flex;
+    align-items:center;
+    gap:15px;
+}
+
+.profile-icon{
+    width:45px;
+    height:45px;
+    background:#2563eb;
+    border-radius:50%;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    color:white;
+    font-size:20px;
+}
+
+.main-container{
+    width:90%;
+    margin:auto;
+    margin-top:20px;
+}
+
+.card-box{
+    background:white;
+    border-radius:15px;
+    padding:25px;
+    margin-bottom:25px;
+    box-shadow:0 2px 8px rgba(0,0,0,0.05);
+}
+
+.section-title{
+    font-weight:700;
+    margin-bottom:5px;
+}
+
+.section-subtitle{
+    color:#777;
+    font-size:14px;
+    margin-bottom:25px;
+}
+
+.action-card{
+    background:white;
+    border-radius:15px;
+    padding:20px;
+    height:100%;
+    box-shadow:0 2px 8px rgba(0,0,0,0.05);
+}
+
+.action-icon{
+    font-size:28px;
+    margin-bottom:10px;
+}
+
+.btn-darkblue{
+    background:#030326;
+    color:white;
+    width:100%;
+    border:none;
+    padding:10px;
+    border-radius:8px;
+    margin-top:15px;
+    text-decoration:none;
+    display:inline-block;
+    text-align:center;
+}
+
+.btn-darkblue:hover{
+    background:#111144;
+    color:white;
+}
+
+.btn-light{
+    width:100%;
+    margin-top:15px;
+}
+
+.appointment-card{
+    border:1px solid #eee;
+    border-radius:12px;
+    padding:20px;
+    margin-top:15px;
+}
+
+.empty-state{
+    text-align:center;
+    padding:50px 20px;
+    color:#888;
+}
+
+.empty-state i{
+    font-size:45px;
+    margin-bottom:15px;
+    color:#b0b0b0;
+}
+
+.footer{
+    background:#1e3a8a;
+    color:white;
+    padding:40px;
+    margin-top:40px;
+}
+
+.notification-box{
+    border-left:4px solid #2563eb;
+    background:#f8fafc;
+    padding:15px;
+    border-radius:10px;
+    margin-bottom:15px;
+}
+
+</style>
+
+</head>
+
+<body>
+
+<!-- TOPBAR -->
+<div class="topbar">
+
+    <div class="profile-section">
+
+        <div class="profile-icon">
+            <i class="fa-solid fa-user"></i>
+        </div>
+
+        <div>
+
+            <h5>
+                Welcome, {{ patient.full_name }}
+            </h5>
+
+            <small>
+                Patient Dashboard
+            </small>
+
+        </div>
+
+    </div>
+
+    <a href="/logout"
+    class="btn btn-outline-dark btn-sm">
+
+        Logout
+
+    </a>
+
+</div>
+
+
+<!-- MAIN -->
+<div class="main-container">
+
+    <!-- PATIENT DETAILS -->
+    <div class="card-box">
+
+        <div class="section-title">
+            My Details
+        </div>
+
+        <div class="row">
+
+            <!-- COLUMN 1 -->
+            <div class="col-md-4">
+
+                <p>
+                    <strong>Name</strong><br>
+                    {{ patient.full_name }}
+                </p>
+
+                <p>
+                    <strong>Contact Number</strong><br>
+                    {{ patient.contact_number }}
+                </p>
+
+                <p>
+                    <strong>Address</strong><br>
+                    {{ patient.address }}
+                </p>
+
+                {% if patient.allergies %}
+
+                <p>
+                    <strong>Allergies</strong><br>
+
+                    <span style="color:red;">
+                        {{ patient.allergies }}
+                    </span>
+
+                </p>
+
+                {% endif %}
+
+            </div>
+
+            <!-- COLUMN 2 -->
+            <div class="col-md-4">
+
+                <p>
+                    <strong>Age</strong><br>
+                    {{ patient.age }}
+                </p>
+
+                <p>
+                    <strong>Email</strong><br>
+                    {{ patient.email }}
+                </p>
+
+                {% if patient.medical_history %}
+
+                <p>
+                    <strong>Medical History</strong><br>
+                    {{ patient.medical_history }}
+                </p>
+
+                {% endif %}
+
+            </div>
+
+            <!-- COLUMN 3 -->
+            <div class="col-md-4">
+
+                <p>
+                    <strong>Gender</strong><br>
+                    {{ patient.gender }}
+                </p>
+
+                <p>
+                    <strong>Emergency Contact</strong><br>
+                    {{ patient.emergency_contact }}
+                </p>
+
+            </div>
+
+        </div>
+
+    </div>
+
+
+    <!-- NOTIFICATIONS -->
+    <div class="card-box">
+
+        <div class="section-title">
+
+            🔔 Notifications
+
+        </div>
+
+        <div class="section-subtitle">
+
+            Latest clinic updates and appointment alerts
+
+        </div>
+
+        {% if notifications %}
+
+            {% for note in notifications %}
+
+            <div class="notification-box">
+
+                <h6 class="fw-bold mb-1">
+
+                    {{ note.title }}
+
+                </h6>
+
+                <p class="mb-1">
+
+                    {{ note.message }}
+
+                </p>
+
+                <small class="text-muted">
+
+                    {{ note.created_at }}
+
+                </small>
+
+            </div>
+
+            {% endfor %}
+
+        {% else %}
+
+            <div class="empty-state">
+
+                <i class="fa-regular fa-bell"></i>
+
+                <p>No notifications yet</p>
+
+            </div>
+
+        {% endif %}
+
+    </div>
+
+
+    <!-- ACTION CARDS -->
+    <div class="row">
+
+        <!-- BOOK -->
+        <div class="col-md-4 mb-4">
+
+            <div class="action-card">
+
+                <div class="action-icon text-primary">
+                    <i class="fa-regular fa-calendar"></i>
+                </div>
+
+                <h5>Book Appointment</h5>
+
+                <p>
+                    Schedule a new consultation with AI-powered triage
+                </p>
+
+                <a href="/booking"
+                class="btn-darkblue">
+
+                    Book Now
+
+                </a>
+
+            </div>
+
+        </div>
+
+
+<!-- QUEUE -->
+<div class="col-md-4 mb-4">
+
+    <div class="action-card">
+
+        <div class="action-icon text-warning">
+
+            <i class="fa-regular fa-clock"></i>
+
+        </div>
+
+        <h5>
+
+            Live Queue Status
+
+        </h5>
+
+        <p>
+
+            Monitor your position and waiting time in real-time
+
+        </p>
+
+       {% if active_appointment %}
+
+<a href="/live_queue_page?appointment_id={{ active_appointment.id }}"
+   class="btn-darkblue">
+
+    View Queue
+
+</a>
+
+        {% else %}
+
+            <button
+            class="btn btn-light border"
+            disabled>
+
+                No Active Queue
+
+            </button>
+
+        {% endif %}
+
+    </div>
+
+</div>
+
+        <!-- HISTORY -->
+        <div class="col-md-4 mb-4">
+
+            <div class="action-card">
+
+                <div class="action-icon text-success">
+                    <i class="fa-solid fa-clock-rotate-left"></i>
+                </div>
+
+                <h5>Consultation History</h5>
+
+                <p>
+                    View past consultations and prescriptions
+                </p>
+
+                <a href="/consultation_history"
+                        class="btn-darkblue">
+
+                            View History
+
+             </a>
+
+            </div>
+
+        </div>
+
+    </div>
+
+
+    <!-- UPCOMING APPOINTMENTS -->
+    <div class="card-box">
+
+        <div class="section-title">
+
+            Upcoming Appointments
+
+        </div>
+
+        <div class="section-subtitle">
+
+            Your scheduled consultations
+
+        </div>
+
+        {% if upcoming_appointments %}
+
+    {% for appointment in upcoming_appointments %}
+
+            <div class="appointment-card">
+
+                <div class="row">
+
+                    <div class="col-md-8">
+
+                        <h5 class="fw-bold">
+
+                            {{ appointment.doctor_name }}
+
+                        </h5>
+
+                        <p class="mb-1">
+
+                            {{ appointment.specialist }}
+
+                        </p>
+
+                        <p class="mb-1">
+
+                            <strong>Date:</strong>
+                            {{ appointment.date }}
+
+                        </p>
+
+                        <p class="mb-1">
+
+                            <strong>Time:</strong>
+                            {{ appointment.time }}
+
+                        </p>
+
+                        <p class="mb-1">
+
+                            <strong>Queue Number:</strong>
+                            #{{ appointment.queue_number }}
+
+                        </p>
+
+                        <p class="mb-1">
+
+                            <strong>Estimated Wait:</strong>
+                            {{ appointment.wait_time }}
+
+                        </p>
+
+<p class="mb-0">
+
+    <strong>Status:</strong>
+
+    {% if appointment.status == "Booked" %}
+
+        <span class="badge bg-primary">
+
+            Booked
+
+        </span>
+
+    {% elif appointment.status == "Waiting" %}
+
+        <span class="badge bg-warning text-dark">
+
+            Waiting
+
+        </span>
+
+    {% elif appointment.status == "In-Consultation" %}
+
+        <span class="badge bg-success">
+
+            In Consultation
+
+        </span>
+
+    {% elif appointment.status == "Completed" %}
+
+        <span class="badge bg-secondary">
+
+            Completed
+
+        </span>
+
+    {% elif appointment.status == "Missed" %}
+
+        <span class="badge bg-danger">
+
+            Missed
+
+        </span>
+
+    {% elif appointment.status == "Cancelled" %}
+
+        <span class="badge bg-dark">
+
+            Cancelled
+
+        </span>
+
+    {% endif %}
+
+</p>
+
+{% if appointment.status == "Missed" %}
+
+<div class="alert alert-warning mt-3">
+
+    <strong>
+
+        ⚠️ You missed your appointment.
+
+    </strong>
+
+    <br>
+
+    Please book another appointment.
+
+
+<br><br>
+
+<a href="{{ url_for('booking') }}"
+   class="btn btn-primary">
+
+    <i class="fa fa-calendar-plus"></i>
+
+    Book New Appointment
+
+</a>
+
+
+
+</div>
+
+{% endif %}
+
+
+                    </div>
+
+
+                    
+
+<div class="col-md-4 text-end">
+
+    {% if appointment.status != 'Cancelled' %}
+
+    <div class="d-flex justify-content-end gap-2 mt-3">
+
+        <!-- VIEW QUEUE -->
+        <a
+        href="/live_queue_page?appointment_id={{ appointment.id }}"
+        class="btn btn-outline-dark btn-sm">
+
+            View Queue
+
+        </a>
+
+        <!-- CANCEL BUTTON -->
+        <button
+            class="btn btn-danger btn-sm"
+
+            data-bs-toggle="modal"
+
+            data-bs-target="#cancelModal{{ appointment.id }}"
+        >
+
+            ✕
+
+        </button>
+
+    </div>
+
+    {% endif %}
+
+</div>
+
+
+
+
+
+
+
+                </div>
+
+            </div>
+
+            {% endfor %}
+
+        {% else %}
+
+            <div class="empty-state">
+
+                <i class="fa-regular fa-calendar"></i>
+
+                <p>No upcoming appointments</p>
+
+                <a href="/booking"
+                class="btn-darkblue"
+                style="width:220px;">
+
+                    Book Your First Appointment
+
+                </a>
+
+            </div>
+
+        {% endif %}
+
+    </div>
+
+
+    <!-- RECENT CONSULTATIONS -->
+    <div class="card-box">
+
+        <div class="section-title">
+
+            Recent Consultations
+
+        </div>
+
+        <div class="section-subtitle">
+
+            Your latest medical records
+
+        </div>
+
+        <div class="empty-state">
+
+            <i class="fa-solid fa-clock-rotate-left"></i>
+
+            <p>No consultation history yet</p>
+
+        </div>
+
+    </div>
+
+</div>
+
+
+<!-- FOOTER -->
+<div class="footer">
+
+    <div class="row">
+
+        <div class="col-md-6">
+
+            <h5>About MEDIAI</h5>
+
+            <p>
+                Your trusted AI-powered healthcare management system for efficient patient care and seamless appointments.
+            </p>
+
+        </div>
+
+        <div class="col-md-6">
+
+            <h5>Contact</h5>
+
+            <p>Email: info@mediai.com</p>
+
+            <p>Phone: +60 3-1234 5678</p>
+
+        </div>
+
+    </div>
+
+</div>
+
+<!-- ========================= -->
+<!-- CANCEL MODALS -->
+<!-- ========================= -->
+
+{% for appointment in upcoming_appointments %}
+
+<div
+    class="modal fade"
+    id="cancelModal{{ appointment.id }}"
+    tabindex="-1"
+>
+
+    <div class="modal-dialog modal-dialog-centered">
+
+        <div class="modal-content border-0 shadow rounded-4">
+
+            <div class="modal-body p-4">
+
+                <h5 class="fw-bold mb-1">
+
+                    Cancel Appointment?
+
+                </h5>
+
+                <p class="text-muted small mb-4">
+
+                    Are you sure you want to cancel this appointment?
+
+                </p>
+
+                <!-- APPOINTMENT DETAILS -->
+                <div class="bg-light rounded-3 p-3 mb-3">
+
+                    <p class="mb-1">
+
+                        <strong>Doctor:</strong>
+                        {{ appointment.doctor_name }}
+
+                    </p>
+
+                    <p class="mb-1">
+
+                        <strong>Clinic:</strong>
+                        {{ appointment.clinic }}
+
+                    </p>
+
+                    <p class="mb-1">
+
+                        <strong>Date:</strong>
+                        {{ appointment.date }}
+
+                    </p>
+
+                    <p class="mb-0">
+
+                        <strong>Time:</strong>
+                        {{ appointment.time }}
+
+                    </p>
+
+                </div>
+
+                <!-- WARNING -->
+                <div
+                    class="alert alert-warning small"
+                >
+
+                    ⚠️ This action will free up your slot
+                    and update the queue for other patients.
+
+                </div>
+
+                <!-- BUTTONS -->
+                <div class="d-flex justify-content-end gap-2">
+
+                    <button
+                        type="button"
+                        class="btn btn-light border"
+                        data-bs-dismiss="modal"
+                    >
+
+                        Keep Appointment
+
+                    </button>
+
+                    <a
+                        href="/cancel_appointment/{{ appointment.id }}"
+                        class="btn btn-danger"
+                    >
+
+                        Yes, Cancel Appointment
+
+                    </a>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+{% endfor %}
+
+
+
+<!-- ========================= -->
+<!-- RESCHEDULE MODAL -->
+<!-- ========================= -->
+
+{% if request.args.get('cancelled') == 'true' %}
+
+<div
+    class="modal fade show"
+    style="
+        display:block;
+        background:rgba(0,0,0,0.5);
+    "
+>
+
+    <div class="modal-dialog modal-dialog-centered">
+
+        <div class="modal-content border-0 shadow rounded-4">
+
+            <div class="modal-body p-4 text-center">
+
+                <h5 class="fw-bold mb-2">
+
+                    Reschedule Appointment?
+
+                </h5>
+
+                <p class="text-muted small mb-4">
+
+                    Your appointment has been successfully cancelled.
+
+                    Would you like to book a new appointment now?
+
+                </p>
+
+                <div class="d-flex justify-content-center gap-2">
+
+                    <a
+                        href="/patient_dashboard"
+                        class="btn btn-light border"
+                    >
+
+                        Not Now
+
+                    </a>
+
+                    <a
+                        href="/booking"
+                        class="btn btn-primary"
+                    >
+
+                        Book New Appointment
+
+                    </a>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+{% endif %}
+
+<!-- Bootstrap JS -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+</body>
+</html>

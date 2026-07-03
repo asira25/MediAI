@@ -1,0 +1,1506 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>AI Triage - MEDIAI</title>
+
+<link
+href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
+rel="stylesheet">
+
+<link
+rel="stylesheet"
+href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"/>
+
+<style>
+
+body{
+    background:#eef2f7;
+    font-family:Arial,sans-serif;
+}
+
+.triage-container{
+    width:70%;
+    max-width:900px;
+    margin:auto;
+    margin-top:40px;
+    margin-bottom:40px;
+}
+
+.back-link{
+    text-decoration:none;
+    color:#111827;
+    font-weight:600;
+    display:inline-block;
+    margin-bottom:25px;
+}
+
+.triage-card{
+    background:white;
+    border-radius:20px;
+    padding:30px;
+    box-shadow:0 4px 12px rgba(0,0,0,0.08);
+}
+
+.top-row{
+    display:flex;
+    gap:15px;
+    align-items:flex-start;
+    margin-bottom:30px;
+}
+
+.brain-icon{
+    width:55px;
+    height:55px;
+    border-radius:50%;
+    background:#8b1cf0;
+    color:white;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-size:24px;
+}
+
+.title{
+    font-size:22px;
+    font-weight:700;
+    color:#111827;
+}
+
+.subtitle{
+    color:#666;
+    font-size:15px;
+    margin-top:5px;
+}
+
+.progress-wrapper{
+    display:flex;
+    gap:10px;
+    margin-bottom:30px;
+}
+
+.progress-fill{
+    flex:1;
+    height:8px;
+    border-radius:20px;
+    background:#d1d5db;
+}
+
+.progress-fill.active{
+    background:#8b1cf0;
+}
+
+.question-box{
+    background:#f5ecff;
+    border-radius:14px;
+    padding:22px;
+    margin-bottom:25px;
+}
+
+.question-title{
+    color:#6b21a8;
+    font-size:18px;
+    font-weight:700;
+    margin-bottom:8px;
+}
+
+.question-subtitle{
+    color:#9333ea;
+    font-size:15px;
+}
+
+.input-label{
+    font-weight:700;
+    margin-bottom:10px;
+    display:block;
+    color:#111827;
+}
+
+textarea{
+    width:100%;
+    border:none;
+    background:#f3f4f6;
+    border-radius:12px;
+    padding:18px;
+    min-height:120px;
+    resize:none;
+    font-size:15px;
+    outline:none;
+}
+
+select{
+    width:100%;
+    border:none;
+    background:#f3f4f6;
+    border-radius:12px;
+    padding:16px;
+    font-size:15px;
+    outline:none;
+}
+
+.option-card{
+    border:2px solid #e5e7eb;
+    border-radius:16px;
+    padding:20px;
+    margin-bottom:15px;
+    cursor:pointer;
+    transition:0.3s;
+}
+
+.option-card:hover{
+    border-color:#8b1cf0;
+}
+
+.card-title{
+    font-weight:700;
+    color:#111827;
+}
+
+.card-subtitle{
+    font-size:14px;
+    color:#6b7280;
+    margin-top:6px;
+}
+
+.priority-row{
+    border:1px solid #ddd;
+    border-radius:16px;
+    padding:20px;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    margin-bottom:20px;
+}
+
+.priority-label{
+    font-size:18px;
+    font-weight:600;
+    color:#1f2937;
+}
+
+.priority-badge{
+    padding:7px 18px;
+    border-radius:20px;
+    color:white;
+    font-size:14px;
+    font-weight:700;
+}
+
+.high{
+    background:#dc2626;
+}
+
+.medium{
+    background:#eab308;
+}
+
+.low{
+    background:#10b981;
+}
+
+.info-box{
+    background:#eff6ff;
+    border:2px solid #93c5fd;
+    color:#1e40af;
+    padding:18px;
+    border-radius:14px;
+    margin-bottom:25px;
+    font-weight:600;
+}
+
+.info-box i{
+    margin-right:10px;
+}
+
+.urgency-card{
+    border:1px solid #ddd;
+    border-radius:16px;
+    padding:22px;
+    display:flex;
+    align-items:flex-start;
+    gap:15px;
+    margin-bottom:20px;
+    cursor:pointer;
+    transition:0.3s;
+}
+
+.urgency-card:hover{
+    border-color:#8b1cf0;
+}
+
+.urgent-card{
+    border:2px solid #dc2626;
+    background:#fef2f2;
+}
+
+.urgency-title{
+    font-size:18px;
+    font-weight:700;
+    color:#111827;
+}
+
+.urgency-subtitle{
+    color:#475569;
+    margin-top:5px;
+}
+
+.note-box{
+    background:#f9fafb;
+    border:1px solid #ddd;
+    border-radius:14px;
+    padding:18px;
+    margin-bottom:25px;
+    color:#374151;
+}
+
+.btn-row{
+    display:flex;
+    gap:15px;
+    margin-top:35px;
+}
+
+.back-btn{
+    width:50%;
+    padding:14px;
+    border-radius:12px;
+    border:1px solid #ddd;
+    background:white;
+    font-weight:700;
+}
+
+.finish-btn{
+    width:50%;
+    border:none;
+    border-radius:12px;
+    padding:15px;
+    background:#020617;
+    color:white;
+    font-weight:700;
+    font-size:16px;
+}
+
+.finish-btn:hover{
+    background:#111827;
+}
+
+.next-btn{
+    width:50%;
+    padding:14px;
+    border-radius:12px;
+    border:none;
+    background:#8b1cf0;
+    color:white;
+    font-weight:700;
+}
+
+.next-btn:hover{
+    background:#7e22ce;
+}
+
+.clinic-badge{
+    display:inline-block;
+    background:#ede9fe;
+    color:#6d28d9;
+    padding:8px 14px;
+    border-radius:20px;
+    font-size:14px;
+    font-weight:600;
+    margin-top:12px;
+}
+
+@media(max-width:768px){
+
+    .triage-container{
+        width:95%;
+    }
+
+}
+
+</style>
+</head>
+
+<body>
+
+<div class="triage-container">
+
+<a href="/booking" class="back-link">
+← Back to Booking
+</a>
+
+<div class="triage-card">
+
+<div class="top-row">
+
+<div class="brain-icon">
+<i class="fa-solid fa-brain"></i>
+</div>
+
+<div>
+
+<div class="title">
+AI Pre-Consultation Triage
+</div>
+
+<div class="subtitle">
+Help us understand your condition better
+</div>
+
+<div class="clinic-badge">
+Selected Clinic: {{ clinic }}
+</div>
+
+</div>
+
+</div>
+
+<form
+id="triageForm"
+action="/appointment_slot"
+method="POST">
+
+<input type="hidden" name="clinic" value="{{ clinic }}">
+
+<!-- STEP 1 -->
+<div id="step1">
+
+<div class="progress-wrapper">
+<div class="progress-fill active"></div>
+<div class="progress-fill"></div>
+<div class="progress-fill"></div>
+<div class="progress-fill"></div>
+</div>
+
+<div class="question-box">
+
+<div class="question-title">
+<i class="fa-solid fa-wave-square"></i>
+Please describe your symptoms
+</div>
+
+<div class="question-subtitle">
+
+Please describe your symptoms in English,
+including symptom type, duration, severity,
+and any additional symptoms.
+
+<br><br>
+
+<b>Example:</b>
+
+<br>
+
+I have had a fever and cough for 3 days.
+
+</div>
+
+</div>
+
+<div class="alert alert-info">
+
+<i class="fa-solid fa-circle-info"></i>
+
+Please enter symptoms in English.
+
+</div>
+
+<label class="input-label">
+Your Symptoms *
+</label>
+
+<textarea
+id="symptoms"
+name="symptoms"
+required
+minlength="10"
+maxlength="500"
+placeholder="Example: I have had a fever and cough for 3 days.">
+</textarea>
+
+<small class="text-muted">
+
+Minimum 10 characters.
+Maximum 500 characters.
+
+</small>
+
+<div class="btn-row">
+
+<button
+type="button"
+class="back-btn"
+onclick="window.location.href='/booking'">
+
+Back
+
+</button>
+
+<button
+type="button"
+class="next-btn"
+onclick="goToStep2()">
+
+Next
+
+</button>
+
+</div>
+
+</div>
+
+<!-- STEP 2 -->
+<div id="step2" style="display:none;">
+
+<div class="progress-wrapper">
+<div class="progress-fill active"></div>
+<div class="progress-fill active"></div>
+<div class="progress-fill"></div>
+<div class="progress-fill"></div>
+</div>
+
+<div class="question-box">
+
+<div class="question-title">
+How long have you had these symptoms?
+</div>
+
+<div class="question-subtitle">
+This helps determine urgency
+</div>
+
+</div>
+
+<select id="duration" name="duration" required>
+
+<option value="">Select duration</option>
+
+<option>Less than 24 hours</option>
+<option>1-3 days</option>
+<option>4-7 days</option>
+<option>1-2 weeks</option>
+<option>More than 2 weeks</option>
+
+</select>
+
+<div class="btn-row">
+
+<button
+type="button"
+class="back-btn"
+onclick="backToStep1()">
+
+Back
+
+</button>
+
+<button
+type="button"
+class="next-btn"
+onclick="goToStep3()">
+
+Next
+
+</button>
+
+</div>
+
+</div>
+
+<!-- STEP 3 -->
+<div id="step3" style="display:none;">
+
+<div class="progress-wrapper">
+<div class="progress-fill active"></div>
+<div class="progress-fill active"></div>
+<div class="progress-fill active"></div>
+<div class="progress-fill"></div>
+</div>
+
+<div class="question-box">
+
+<div class="question-title">
+How severe are your symptoms?
+</div>
+
+<div class="question-subtitle">
+Choose the severity level
+</div>
+
+</div>
+
+<label class="option-card">
+
+<input type="radio" name="severity" value="Mild" required>
+
+<span class="card-title">
+Mild
+</span>
+
+<div class="card-subtitle">
+Uncomfortable but manageable
+</div>
+
+</label>
+
+<label class="option-card">
+
+<input type="radio" name="severity" value="Moderate">
+
+<span class="card-title">
+Moderate
+</span>
+
+<div class="card-subtitle">
+Affecting daily activities
+</div>
+
+</label>
+
+<label class="option-card">
+
+<input type="radio" name="severity" value="Severe">
+
+<span class="card-title">
+Severe
+</span>
+
+<div class="card-subtitle">
+Unable to perform normal activities
+</div>
+
+</label>
+
+<div class="btn-row">
+
+<button
+type="button"
+class="back-btn"
+onclick="backToStep2()">
+
+Back
+
+</button>
+
+<button
+type="button"
+class="next-btn"
+onclick="goToStep4()">
+
+Next
+
+</button>
+
+</div>
+
+</div>
+
+<!-- STEP 4 -->
+<div id="step4" style="display:none;">
+
+<div class="progress-wrapper">
+
+<div class="progress-fill active"></div>
+<div class="progress-fill active"></div>
+<div class="progress-fill active"></div>
+<div class="progress-fill active"></div>
+
+</div>
+
+<div class="info-box">
+
+<i class="fa-solid fa-circle-info"></i>
+
+Your priority is calculated automatically.
+Urgent cases are prioritized.
+
+</div>
+
+<div class="question-box">
+
+<div class="question-title">
+
+<i class="fa-solid fa-wave-square"></i>
+
+Select urgency level
+
+</div>
+
+<div class="question-subtitle">
+
+Based on your symptoms,
+select how urgent you need care
+
+</div>
+
+</div>
+
+<div class="priority-row">
+
+<div class="priority-label">
+
+Calculated Priority:
+
+</div>
+
+<div
+class="priority-badge medium"
+id="priorityBadge">
+
+MEDIUM
+
+</div>
+
+</div>
+
+<label class="urgency-card">
+
+<input
+type="radio"
+name="urgency"
+value="Routine">
+
+<div>
+
+<div class="urgency-title">
+Normal
+</div>
+
+<div class="urgency-subtitle">
+Can wait for regular appointment slot
+</div>
+
+</div>
+
+</label>
+
+<label
+class="urgency-card urgent-card"
+id="urgentCard">
+
+<input
+type="radio"
+name="urgency"
+value="Very Urgent"
+id="urgentOption">
+
+<div>
+
+<div class="urgency-title">
+Urgent
+</div>
+
+<div class="urgency-subtitle">
+Need to see a doctor as soon as possible
+</div>
+
+</div>
+
+</label>
+
+<div
+class="note-box"
+id="priorityInfo">
+
+Note: Urgent selection is only available
+for high-priority cases.
+
+</div>
+
+<div class="btn-row">
+
+<button
+type="button"
+class="back-btn"
+onclick="backToStep3()">
+
+Back
+
+</button>
+
+<button
+type="button"
+class="finish-btn"
+onclick="showAssessmentPopup()">
+
+Complete Assessment
+
+</button>
+
+</div>
+
+</div>
+
+</form>
+
+</div>
+
+</div>
+
+<!-- RESULT POPUP -->
+<div
+class="modal fade"
+id="resultModal"
+tabindex="-1">
+
+<div class="modal-dialog modal-dialog-centered modal-lg">
+
+<div
+class="modal-content"
+style="border-radius:20px;">
+
+<div class="modal-header border-0">
+
+<h4 class="fw-bold">
+AI Assessment Result
+</h4>
+
+<button
+type="button"
+class="btn-close"
+data-bs-dismiss="modal">
+</button>
+
+</div>
+
+<div class="modal-body text-center">
+
+<div id="popupResult"></div>
+
+</div>
+
+<div class="modal-footer border-0">
+
+<button
+type="button"
+class="btn btn-dark btn-lg"
+onclick="submitTriageForm()">
+
+Continue Appointment Booking
+
+</button>
+
+</div>
+
+</div>
+
+</div>
+
+</div>
+
+<script>
+
+function goToStep2(){
+
+    let symptoms =
+    document.getElementById("symptoms")
+    .value.trim();
+
+    let invalidInputs = [
+        "-",
+        "test",
+        "testing",
+        "asdf",
+        "abc",
+        "hello",
+        "hi",
+        "hey",
+        "good morning",
+        "good afternoon",
+        "good evening",
+        "nothing",
+        "n/a",
+        "na",
+        "none",
+        "symptom",
+        "symptoms"
+    ];
+
+    if(symptoms.length < 10){
+
+        alert(
+        "Please enter a more detailed symptom description."
+        );
+
+        return;
+    }
+
+    if(invalidInputs.includes(
+        symptoms.toLowerCase()
+    )){
+
+        alert(
+        "Please describe your actual symptoms."
+        );
+
+        return;
+    }
+
+    let wordCount =
+    symptoms.split(/\s+/).length;
+
+    if(wordCount < 3){
+
+        alert(
+        "Please provide more information about your symptoms."
+        );
+
+        return;
+    }
+
+    const symptomKeywords = [
+
+        "fever",
+        "cough",
+        "cold",
+        "headache",
+        "migraine",
+        "pain",
+        "chest pain",
+        "stomach pain",
+        "abdominal pain",
+        "vomit",
+        "vomiting",
+        "nausea",
+        "diarrhea",
+        "rash",
+        "swelling",
+        "dizziness",
+        "dizzy",
+        "fatigue",
+        "tired",
+        "sore throat",
+        "infection",
+        "bleeding",
+        "breathing",
+        "shortness of breath"
+
+    ];
+
+    let containsSymptom = symptomKeywords.some(
+        keyword =>
+        symptoms.toLowerCase().includes(keyword)
+    );
+
+    if(!containsSymptom){
+
+        let proceed = confirm(
+            "No common symptom keywords were detected. Please ensure you have described your symptoms clearly. Click OK to continue or Cancel to edit."
+        );
+
+        if(!proceed){
+            return;
+        }
+    }
+
+    document.getElementById("step1").style.display =
+    "none";
+
+    document.getElementById("step2").style.display =
+    "block";
+}
+
+function backToStep1(){
+
+    document.getElementById("step2").style.display =
+    "none";
+
+    document.getElementById("step1").style.display =
+    "block";
+}
+
+function goToStep3(){
+
+    let duration =
+    document.getElementById("duration").value;
+
+    if(duration === ""){
+
+        alert("Please select duration");
+        return;
+    }
+
+    document.getElementById("step2").style.display =
+    "none";
+
+    document.getElementById("step3").style.display =
+    "block";
+}
+
+function backToStep2(){
+
+    document.getElementById("step3").style.display =
+    "none";
+
+    document.getElementById("step2").style.display =
+    "block";
+}
+
+function goToStep4(){
+
+    let severity =
+    document.querySelector(
+        'input[name="severity"]:checked'
+    );
+
+    if(!severity){
+
+        alert("Please select severity");
+        return;
+    }
+
+    document.getElementById("step3").style.display =
+    "none";
+
+    document.getElementById("step4").style.display =
+    "block";
+
+    calculatePriority();
+}
+
+function backToStep3(){
+
+    document.getElementById("step4").style.display =
+    "none";
+
+    document.getElementById("step3").style.display =
+    "block";
+}
+
+function calculatePriority(){
+
+    let symptoms =
+    document.getElementById("symptoms")
+    .value.toLowerCase();
+
+    let duration =
+    document.getElementById("duration").value;
+
+    let severity =
+    document.querySelector(
+        'input[name="severity"]:checked'
+    ).value;
+
+    let patientAge =
+    Number("{{ patient.age }}");
+
+    let score = 0;
+
+    // SEVERITY
+
+    if(severity === "Mild"){
+
+        score += 10;
+
+    }
+
+    else if(severity === "Moderate"){
+
+        score += 25;
+
+    }
+
+    else{
+
+        score += 40;
+    }
+
+    // DURATION
+
+    if(duration === "Less than 24 hours"){
+
+        score += 15;
+
+    }
+
+    else if(duration === "1-3 days"){
+
+        score += 12;
+
+    }
+
+    else if(duration === "4-7 days"){
+
+        score += 8;
+
+    }
+
+    else if(duration === "1-2 weeks"){
+
+        score += 5;
+
+    }
+
+    else{
+
+        score += 3;
+    }
+
+    // AGE
+
+    if(patientAge >= 65){
+
+        score += 20;
+
+    }
+
+    else if(patientAge < 18){
+
+        score += 15;
+
+    }
+
+    else{
+
+        score += 5;
+    }
+
+    // KEYWORDS
+
+    const emergencyKeywords = [
+
+        "chest pain",
+        "difficulty breathing",
+        "severe bleeding",
+        "unconscious",
+        "seizure",
+        "stroke",
+        "heart attack",
+        "head injury",
+        "broken bone",
+        "severe abdominal pain",
+        "poisoning",
+        "overdose",
+        "suicide",
+        "severe allergic reaction",
+        "anaphylaxis",
+        "cannot breathe"
+
+    ];
+
+    const warningKeywords = [
+
+        "fever",
+        "vomit",
+        "dizzy",
+        "faint",
+        "confusion",
+        "dehydration",
+        "severe pain",
+        "swelling",
+        "rash",
+        "bleeding",
+        "infection"
+
+    ];
+
+    let emergencyDetected = false;
+    let warningDetected = false;
+
+    for(let word of emergencyKeywords){
+
+        if(symptoms.includes(word)){
+
+            emergencyDetected = true;
+
+            score += 15;
+
+            break;
+        }
+
+    }
+
+    if(!emergencyDetected){
+
+        for(let word of warningKeywords){
+
+            if(symptoms.includes(word)){
+
+                warningDetected = true;
+
+                score += 10;
+
+                break;
+            }
+
+        }
+
+    }
+
+
+    // PRIORITY UI
+
+    let badge =
+    document.getElementById("priorityBadge");
+
+    let urgentCard =
+    document.getElementById("urgentCard");
+
+    let urgentOption =
+    document.getElementById("urgentOption");
+
+    let info =
+    document.getElementById("priorityInfo");
+
+    if(score >= 67){
+
+        badge.innerHTML =
+        "HIGH";
+
+        badge.className =
+        "priority-badge high";
+
+        urgentCard.style.display =
+        "flex";
+
+        urgentOption.disabled =
+        false;
+
+        info.innerHTML =
+        "Urgent queue is available because your symptoms were assessed as HIGH priority.";
+
+    }
+
+    else if(score >= 40){
+
+        badge.innerHTML =
+        "MEDIUM";
+
+        badge.className =
+        "priority-badge medium";
+
+        urgentCard.style.display =
+        "none";
+
+        urgentOption.disabled =
+        true;
+
+        info.innerHTML =
+        "Note: Urgent selection is only available for high-priority cases. Your symptoms have been assessed as MEDIUM priority.";
+
+    }
+
+    else{
+
+        badge.innerHTML =
+        "LOW";
+
+        badge.className =
+        "priority-badge low";
+
+        urgentCard.style.display =
+        "none";
+
+        urgentOption.disabled =
+        true;
+
+        info.innerHTML =
+        "Note: Urgent selection is only available for high-priority cases. Your symptoms have been assessed as LOW priority.";
+
+    }
+
+}
+
+function showAssessmentPopup(){
+
+    let symptoms =
+    document.getElementById("symptoms")
+    .value.toLowerCase();
+
+    let duration =
+    document.getElementById("duration").value;
+
+    let severity =
+    document.querySelector(
+        'input[name="severity"]:checked'
+    ).value;
+
+    let urgency =
+    document.querySelector(
+        'input[name="urgency"]:checked'
+    ).value;
+
+    let patientAge =
+    Number("{{ patient.age }}");
+
+    let score = 0;
+
+    // SEVERITY
+
+    if(severity === "Mild"){
+
+        score += 10;
+
+    }
+
+    else if(severity === "Moderate"){
+
+        score += 25;
+
+    }
+
+    else{
+
+        score += 40;
+    }
+
+    // DURATION
+
+    if(duration === "Less than 24 hours"){
+
+        score += 15;
+
+    }
+
+    else if(duration === "1-3 days"){
+
+        score += 12;
+
+    }
+
+    else if(duration === "4-7 days"){
+
+        score += 8;
+
+    }
+
+    else if(duration === "1-2 weeks"){
+
+        score += 5;
+
+    }
+
+    else{
+
+        score += 3;
+    }
+
+    // AGE
+
+    if(patientAge >= 65){
+
+        score += 20;
+
+    }
+
+    else if(patientAge < 18){
+
+        score += 15;
+
+    }
+
+    else{
+
+        score += 5;
+    }
+
+    // KEYWORDS
+
+    const emergencyKeywords = [
+
+        "chest pain",
+        "difficulty breathing",
+        "severe bleeding",
+        "unconscious",
+        "seizure",
+        "stroke",
+        "heart attack",
+        "head injury",
+        "broken bone",
+        "severe abdominal pain",
+        "poisoning",
+        "overdose",
+        "suicide",
+        "severe allergic reaction",
+        "anaphylaxis",
+        "cannot breathe"
+
+    ];
+
+    const warningKeywords = [
+
+        "fever",
+        "vomit",
+        "dizzy",
+        "faint",
+        "confusion",
+        "dehydration",
+        "severe pain",
+        "swelling",
+        "rash",
+        "bleeding",
+        "infection"
+
+    ];
+
+    let emergencyDetected = false;
+    let warningDetected = false;
+
+    for(let word of emergencyKeywords){
+
+        if(symptoms.includes(word)){
+
+            emergencyDetected = true;
+
+            score += 15;
+
+            break;
+        }
+
+    }
+
+    if(!emergencyDetected){
+
+        for(let word of warningKeywords){
+
+            if(symptoms.includes(word)){
+
+                warningDetected = true;
+
+                score += 10;
+
+                break;
+            }
+
+        }
+
+    }
+
+
+  
+
+    // PRIORITY
+
+    let priority = "LOW";
+    let color = "#10b981";
+
+    if(score >= 70){
+
+        priority = "HIGH";
+        color = "#dc2626";
+
+    }
+
+    else if(score >= 40){
+
+        priority = "MEDIUM";
+        color = "#f59e0b";
+    }
+
+document.getElementById("popupResult").innerHTML = `
+
+<div
+style="
+border:2px solid ${color};
+border-radius:20px;
+padding:35px;
+">
+
+<h4 class="fw-bold">
+AI Assessment Score
+</h4>
+
+<h1
+style="
+font-size:80px;
+font-weight:800;
+margin-top:20px;
+">
+
+${score}/100
+
+</h1>
+
+<h2
+style="
+color:${color};
+font-weight:800;
+margin-top:20px;
+">
+
+${priority} PRIORITY
+
+</h2>
+
+</div>
+
+<div class="mt-4 text-start">
+
+<div class="row">
+
+<div class="col-md-6 mb-3">
+
+<div class="p-3 bg-light rounded">
+
+<b>Severity</b><br>
+${severity}
+
+</div>
+
+</div>
+
+<div class="col-md-6 mb-3">
+
+<div class="p-3 bg-light rounded">
+
+<b>Duration</b><br>
+${duration}
+
+</div>
+
+</div>
+
+<div class="col-md-6 mb-3">
+
+<div class="p-3 bg-light rounded">
+
+<b>Urgency Selected</b><br>
+${urgency}
+
+</div>
+
+</div>
+
+<div class="col-md-6 mb-3">
+
+<div class="p-3 bg-light rounded">
+
+<b>Patient Age</b><br>
+${patientAge}
+
+</div>
+
+</div>
+
+</div>
+
+<div class="p-3 bg-light rounded">
+
+<b>Symptoms Summary</b><br><br>
+
+${symptoms}
+
+</div>
+
+</div>
+
+`;
+
+    let modal =
+    new bootstrap.Modal(
+        document.getElementById("resultModal")
+    );
+
+    modal.show();
+}
+
+function submitTriageForm(){
+
+    document.getElementById("triageForm").submit();
+
+}
+
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+</body>
+</html>

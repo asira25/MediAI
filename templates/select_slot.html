@@ -1,0 +1,651 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <title>Select Appointment Slot - MEDIAI</title>
+
+    <!-- Bootstrap -->
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+
+    <!-- Font Awesome -->
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
+    />
+
+    <style>
+      body {
+        background: #eef2f7;
+        font-family: Arial, sans-serif;
+      }
+
+      .container-box {
+        width: 78%;
+        margin: auto;
+        margin-top: 40px;
+        margin-bottom: 40px;
+      }
+
+      .main-card {
+        background: white;
+        border-radius: 18px;
+        padding: 35px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+      }
+
+      .section-box {
+        border-radius: 14px;
+        padding: 22px;
+        margin-bottom: 24px;
+      }
+
+      .patient-box {
+        background: #f8fafc;
+      }
+
+      .ai-box {
+        background: #faf5ff;
+      }
+
+      .recommend-box {
+        background: #ecfdf5;
+        border: 2px solid #86efac;
+      }
+
+      .priority-badge {
+        float: right;
+        padding: 6px 16px;
+        border-radius: 20px;
+        color: white;
+        font-size: 12px;
+        font-weight: 700;
+      }
+
+      .low {
+        background: #10b981;
+      }
+
+      .medium {
+        background: #f59e0b;
+      }
+
+      .high {
+        background: #dc2626;
+      }
+
+      .slot-btn {
+        width: 100%;
+
+        border: 1px solid #d1d5db;
+
+        background: white;
+
+        border-radius: 10px;
+
+        padding: 12px;
+
+        font-weight: 600;
+
+        transition: 0.2s;
+      }
+
+      .slot-btn:hover {
+        border: 1px solid #2563eb;
+      }
+
+      .slot-btn.active {
+        background: #2563eb;
+
+        color: white;
+
+        border: 1px solid #2563eb;
+      }
+
+      .booked-slot {
+        background: #fee2e2;
+
+        color: #dc2626;
+
+        border: 1px solid #fca5a5;
+
+        cursor: not-allowed;
+      }
+
+      .confirm-btn {
+        width: 100%;
+
+        border: none;
+
+        background: #020617;
+
+        color: white;
+
+        padding: 12px;
+
+        border-radius: 10px;
+
+        font-weight: 700;
+      }
+
+      .confirm-btn:hover {
+        background: #111827;
+      }
+
+      .back-btn {
+        width: 100%;
+
+        border: 1px solid #ddd;
+
+        background: white;
+
+        padding: 12px;
+
+        border-radius: 10px;
+
+        font-weight: 700;
+      }
+
+      .back-btn:hover {
+        background: #f9fafb;
+      }
+
+      .form-select {
+        padding: 11px;
+        border-radius: 10px;
+      }
+
+      .info-card {
+        background: #eff6ff;
+        border-radius: 12px;
+        padding: 15px;
+      }
+
+      .summary-card {
+        background: #f9fafb;
+        border-radius: 12px;
+        padding: 20px;
+        border: 1px solid #e5e7eb;
+      }
+
+      .summary-title {
+        font-weight: 700;
+        margin-bottom: 10px;
+      }
+
+      .slot-title {
+        font-size: 14px;
+        color: #6b7280;
+        margin-bottom: 10px;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="container-box">
+      <a href="/booking" class="text-decoration-none text-dark">
+        ← Back to Booking
+      </a>
+
+      <div class="main-card mt-3">
+        <h3 class="fw-bold">Appointment Details</h3>
+
+        <p class="text-muted">
+          Review AI recommendations and confirm your appointment booking
+        </p>
+
+        <!-- PATIENT -->
+        <div class="section-box patient-box">
+          <h6 class="fw-bold text-primary">Patient Information</h6>
+
+          <div class="row">
+            <div class="col-md-6">
+              <b>Name:</b><br />
+
+              {{ patient.full_name }}
+            </div>
+
+            <div class="col-md-6">
+              <b>Age:</b><br />
+
+              {{ patient.age }} years old
+            </div>
+          </div>
+        </div>
+
+        <!-- AI -->
+        <div class="section-box ai-box">
+          <span
+            class="priority-badge {% if priority == 'HIGH' %} high {% elif priority == 'MEDIUM' %} medium {% else %} low {% endif %}"
+          >
+            {{ priority }}
+          </span>
+
+          <h6 class="fw-bold">AI Assessment</h6>
+
+          <p class="mb-1">
+            <b>Symptoms:</b>
+            {{ symptoms }}
+          </p>
+
+          <p class="mb-1">
+            <b>Severity:</b>
+            {{ severity }}
+          </p>
+
+          <p class="mb-1">
+            <b>Urgency:</b>
+            {{ urgency }}
+          </p>
+
+          <p class="mb-0">
+            <b>Recommended Specialist:</b>
+            {{ specialist }}
+          </p>
+        </div>
+
+        <!-- RECOMMENDED -->
+        <div class="section-box recommend-box">
+          <h6 class="fw-bold text-success">
+            <i class="fa-solid fa-circle-check"></i>
+
+            AI Recommended Appointment
+          </h6>
+
+          <hr />
+
+          <p class="mb-2">
+            <strong>👨‍⚕️ Doctor</strong><br />
+
+            <span id="recommendedDoctor"> {{ doctor_name }} </span>
+          </p>
+
+          <p class="mb-2">
+            <strong>🏥 Specialist</strong><br />
+
+            <span id="recommendedSpecialist"> {{ specialist }} </span>
+          </p>
+
+          <p class="mb-2">
+            <strong>📅 Recommended Date</strong><br />
+
+            <span id="recommendedDate"> {{ recommended_date }} </span>
+          </p>
+
+          <p class="mb-2">
+            <strong>🕒 Recommended Time</strong><br />
+
+            <span id="recommendedTime"> {{ suggested_time }} </span>
+          </p>
+
+          <hr />
+
+          <p class="text-success mb-0">
+            ✓ Best doctor match based on symptoms<br />
+
+            ✓ Earliest available appointment based on current date, time and
+            doctor availability
+          </p>
+        </div>
+
+        <!-- OVERRIDE -->
+        {% if override_message %}
+
+        <div class="alert alert-warning">
+          <i class="fa-solid fa-triangle-exclamation"></i>
+
+          {{ override_message }}
+        </div>
+
+        {% endif %}
+
+        <!-- FORM -->
+        <form method="POST" action="/confirm_booking" id="bookingForm">
+          <!-- HIDDEN -->
+          <input
+            type="hidden"
+            name="doctor_name"
+            id="doctorNameInput"
+            value="{{ doctor_name }}"
+          />
+
+          <input
+            type="hidden"
+            name="doctor_id"
+            id="hiddenDoctorId"
+            value="{{ doctor_id }}"
+          />
+
+          <input type="hidden" name="specialist" value="{{ specialist }}" />
+
+          <input type="hidden" name="clinic" value="{{ clinic }}" />
+
+          <input type="hidden" name="symptoms" value="{{ symptoms }}" />
+
+          <input type="hidden" name="severity" value="{{ severity }}" />
+
+          <input type="hidden" name="duration" value="{{ duration }}" />
+
+          <input type="hidden" name="priority" value="{{ priority }}" />
+
+          <input type="hidden" name="urgency" value="{{ urgency }}" />
+
+          <input
+            type="hidden"
+            name="selected_time"
+            id="selectedTimeInput"
+            value="{{ suggested_time }}"
+          />
+
+          <!-- MODIFY -->
+          <div class="summary-card mb-4">
+            <div class="summary-title">Modify Appointment</div>
+
+            <p class="text-muted mb-4">
+              You may change the doctor, appointment date, or select another
+              available time slot before confirming.
+            </p>
+
+            <!-- DOCTOR -->
+            <label class="fw-bold mb-2"> Choose Doctor </label>
+
+            <select class="form-select mb-4" id="doctorSelect" name="doctor_id">
+              {% if doctors %} {% for doctor in doctors %}
+
+              <option
+                value="{{ doctor.id }}"
+                data-name="{{ doctor.name }}"
+                {%
+                if
+                doctor.id|string=""
+                ="doctor_id|string"
+                %}selected{%
+                endif
+                %}
+              >
+                {{ doctor.name }} - {{ doctor.specialist }}
+              </option>
+
+              {% endfor %} {% else %}
+
+              <option value="">No doctors available</option>
+
+              {% endif %}
+            </select>
+
+            <!-- DATE -->
+            <label class="fw-bold mb-2"> Choose Date </label>
+
+            <input
+              type="date"
+              class="form-control mb-4"
+              id="dateSelect"
+              name="selected_date"
+              min="{{ today }}"
+              value="{{ selected_date }}"
+            />
+
+            <!-- SLOT GRID -->
+            <div class="slot-title">Available Time Slots</div>
+
+            <div class="row g-2 mb-4" id="slotsContainer">
+              {% if available_slots|length == 0 %}
+
+              <div class="col-12">
+                <div class="alert alert-warning">
+                  <strong
+                    >No appointment slots are available for the selected
+                    date.</strong
+                  >
+
+                  <br />
+
+                  Please choose another appointment date.
+                </div>
+              </div>
+
+              {% else %} {% for slot in generate_time_slots %}
+
+              <div class="col-md-3">
+                {% if slot in available_slots %}
+
+                <button
+                  type="button"
+                  class="slot-btn {% if slot == suggested_time %}active{% endif %}"
+                  onclick="selectSlot(this,'{{ slot }}')"
+                >
+                  {{ slot }}
+                </button>
+
+                {% else %}
+
+                <button type="button" class="slot-btn booked-slot" disabled>
+                  {{ slot }} (Unavailable)
+                </button>
+
+                {% endif %}
+              </div>
+
+              {% endfor %} {% endif %}
+            </div>
+          </div>
+
+          <!-- SELECTED -->
+          <div class="info-card mb-4">
+            <h6 class="fw-bold">Selected Appointment</h6>
+
+            <p class="text-muted mb-3">
+              Your appointment details will update automatically when you change
+              the doctor, date or time.
+            </p>
+
+            <p class="mb-2">
+              <b>👨‍⚕️ Doctor:</b>
+
+              <span id="selectedDoctorText"> {{ doctor_name }} </span>
+            </p>
+
+            <p class="mb-2">
+              <b>📅 Date:</b>
+
+              <span id="selectedDateText"> {{ selected_date }} </span>
+            </p>
+
+            <p class="mb-2">
+              <b>🕒 Time:</b>
+
+              <span id="selectedSlotText"> {{ suggested_time }} </span>
+            </p>
+          </div>
+
+          <!-- WAIT TIME -->
+          <div class="info-card mb-4">
+            <h6 class="fw-bold text-primary">
+              <i class="fa-regular fa-clock"></i>
+
+              Wait Time & Queue Info
+            </h6>
+
+            <!-- CURRENT QUEUE -->
+            <p class="mb-1">
+              Current queue:
+
+              <b>
+                <span id="queueCount"> {{ recommended_queue }} </span>
+              </b>
+
+              patient<span id="queuePlural">
+                {% if recommended_queue != 1 %}s{% endif %}
+              </span>
+
+              ahead
+            </p>
+
+            <p class="mb-1">
+              Consultation duration:
+
+              <b> {{ consultation_duration }} min </b>
+            </p>
+
+            <!-- ESTIMATED WAIT -->
+            <p class="mb-1">
+              Estimated wait:
+
+              <b>
+                <span id="estimatedWait"> {{ estimated_wait }} </span>
+
+                minutes
+              </b>
+            </p>
+
+            <!-- QUEUE MESSAGE -->
+            <div id="queueMessage">
+              {% if recommended_queue == 0 %}
+
+              <p class="text-success mb-1">
+                ✓ First in queue - minimal wait time
+              </p>
+
+              {% else %}
+
+              <p class="text-warning mb-1">
+                ⏱ {{ recommended_queue }} patient{% if recommended_queue != 1
+                %}s{% endif %} waiting ahead
+              </p>
+
+              {% endif %}
+            </div>
+
+            <!-- PRIORITY MESSAGE -->
+            {% if priority == "HIGH" %}
+
+            <p class="text-danger mb-0">⚡ High priority - reduced wait time</p>
+
+            {% elif priority == "MEDIUM" %}
+
+            <p class="text-primary mb-0">📋 Medium priority queue</p>
+
+            {% else %}
+
+            <p class="text-success mb-0">✓ Standard queue priority</p>
+
+            {% endif %}
+          </div>
+
+          <!-- BUTTONS -->
+          <div class="row mt-4">
+            <div class="col-md-6">
+              <button type="button" class="back-btn" onclick="history.back()">
+                Back
+              </button>
+            </div>
+
+            <div class="col-md-6">
+              <button
+                type="submit"
+                class="confirm-btn"
+                {%
+                if
+                available_slots|length=""
+                ="0"
+                %}
+                disabled
+                {%
+                endif
+                %}
+              >
+                Confirm Booking
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <script>
+      // =========================
+      // SLOT SELECT
+      // =========================
+      function selectSlot(button, time) {
+        let buttons = document.querySelectorAll(".slot-btn");
+
+        buttons.forEach((btn) => {
+          btn.classList.remove("active");
+        });
+
+        button.classList.add("active");
+
+        document.getElementById("selectedTimeInput").value = time;
+
+        document.getElementById("selectedSlotText").innerHTML = time;
+      }
+
+      // =========================
+      // UPDATE DOCTOR
+      // =========================
+      function updateDoctorName() {
+        let doctorSelect = document.getElementById("doctorSelect");
+
+        let selectedOption = doctorSelect.options[doctorSelect.selectedIndex];
+
+        let doctorName = selectedOption.getAttribute("data-name");
+
+        let doctorId = doctorSelect.value;
+
+        document.getElementById("doctorNameInput").value = doctorName;
+
+        document.getElementById("selectedDoctorText").innerHTML = doctorName;
+
+        document.getElementById("hiddenDoctorId").value = doctorId;
+      }
+
+      // =========================
+      // UPDATE DATE
+      // =========================
+      function updateDateText() {
+        let selectedDate = document.getElementById("dateSelect").value;
+
+        document.getElementById("selectedDateText").innerHTML = selectedDate;
+
+        document.getElementById("recommendedDate").innerHTML = selectedDate;
+      }
+      document
+        .getElementById("doctorSelect")
+        .addEventListener("change", function () {
+          updateDoctorName();
+
+          // Clear previous slot selection
+          document.getElementById("selectedTimeInput").value = "";
+
+          document.getElementById("selectedSlotText").innerHTML = "-";
+
+          document.getElementById("bookingForm").action = "/appointment_slot";
+
+          document.getElementById("bookingForm").submit();
+        });
+
+      // =========================
+      // DATE CHANGE
+      // =========================
+      document
+        .getElementById("dateSelect")
+        .addEventListener("change", function () {
+          updateDateText();
+
+          // Clear previous slot selection
+          document.getElementById("selectedTimeInput").value = "";
+
+          document.getElementById("selectedSlotText").innerHTML = "-";
+
+          document.getElementById("bookingForm").action = "/appointment_slot";
+
+          document.getElementById("bookingForm").submit();
+        });
+    </script>
+  </body>
+</html>

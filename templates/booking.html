@@ -1,0 +1,706 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Book Appointment - MEDIAI</title>
+
+    <!-- Bootstrap -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+
+    <!-- Font Awesome -->
+    <link rel="stylesheet"
+    href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"/>
+
+    <style>
+
+        body{
+            background:#eef2f7;
+            font-family:Arial, sans-serif;
+        }
+
+        .booking-container{
+            width:70%;
+            margin:auto;
+            margin-top:40px;
+            margin-bottom:40px;
+        }
+
+        .back-link{
+            text-decoration:none;
+            color:#555;
+            font-size:13px;
+            margin-bottom:15px;
+            display:inline-block;
+            font-weight:600;
+        }
+
+        .booking-card{
+            background:white;
+            border-radius:15px;
+            padding:30px;
+            box-shadow:0 4px 10px rgba(0,0,0,0.08);
+        }
+
+        .title-row{
+            display:flex;
+            align-items:flex-start;
+            gap:15px;
+            margin-bottom:25px;
+        }
+
+        .location-icon{
+            color:#2563eb;
+            font-size:22px;
+            margin-top:3px;
+        }
+
+        .title{
+            font-size:20px;
+            font-weight:700;
+        }
+
+        .subtitle{
+            color:#777;
+            font-size:14px;
+        }
+
+        .form-label{
+            font-size:14px;
+            font-weight:600;
+            margin-bottom:8px;
+        }
+
+        .form-select{
+            border-radius:8px;
+            padding:10px;
+        }
+
+        .clinic-list{
+            margin-top:25px;
+            max-height:550px;
+            overflow-y:auto;
+            padding-right:5px;
+        }
+
+        .clinic-card{
+            border:1px solid #ddd;
+            border-radius:12px;
+            padding:20px;
+            margin-bottom:18px;
+            transition:0.3s;
+            background:white;
+            cursor:pointer;
+        }
+
+        .clinic-card:hover{
+            border:2px solid #2563eb;
+            background:#f8fbff;
+        }
+
+        .clinic-card.selected{
+            border:2px solid #2563eb;
+            background:#eff6ff;
+        }
+
+        .clinic-name{
+            font-size:20px;
+            font-weight:700;
+            margin-bottom:10px;
+            color:#111827;
+        }
+
+        .clinic-info{
+            color:#666;
+            font-size:14px;
+            margin-bottom:6px;
+        }
+
+        .badge-box{
+            display:inline-block;
+            background:#eef2ff;
+            color:#1e40af;
+            padding:6px 12px;
+            border-radius:20px;
+            font-size:13px;
+            margin-top:10px;
+            margin-right:8px;
+            font-weight:600;
+        }
+
+            .waiting-badge{
+            display:inline-block;
+            background:#eef2ff;
+            color:#1e40af;
+            padding:6px 12px;
+            border-radius:20px;
+            font-size:13px;
+            margin-top:10px;
+            font-weight:600;
+        }
+
+        .specialist-box{
+            margin-top:18px;
+            background:#f9fafb;
+            border-radius:10px;
+            padding:15px;
+        }
+
+        .specialist-title{
+            font-weight:700;
+            margin-bottom:10px;
+            color:#111827;
+        }
+
+        .doctor-item{
+    padding:15px 0;
+    border-bottom:1px solid #e5e7eb;
+    font-size:14px;
+    line-height:1.6;
+}
+
+        .doctor-item:last-child{
+            border-bottom:none;
+        }
+
+        .continue-btn{
+            width:100%;
+            background:#020617;
+            color:white;
+            border:none;
+            padding:14px;
+            border-radius:12px;
+            font-weight:700;
+            margin-top:20px;
+            transition:0.3s;
+        }
+
+        .continue-btn:hover{
+            background:#111827;
+        }
+
+        .continue-btn:disabled{
+            background:#9ca3af;
+            cursor:not-allowed;
+        }
+
+        iframe{
+            width:100%;
+            height:220px;
+            border:none;
+            border-radius:12px;
+            margin-top:18px;
+        }
+
+        .empty-state{
+            text-align:center;
+            padding:40px 20px;
+            color:#888;
+        }
+
+        .empty-state i{
+            font-size:50px;
+            margin-bottom:15px;
+            color:#b0b0b0;
+        }
+
+    </style>
+</head>
+
+<body>
+
+<div class="booking-container">
+
+<a href="/patient_dashboard" class="back-link">
+    ← Back to Dashboard
+</a>
+
+    <div class="booking-card">
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+{% if messages %}
+    {% for category, message in messages %}
+
+        <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+
+            {{ message }}
+
+            <button
+                type="button"
+                class="btn-close"
+                data-bs-dismiss="alert">
+            </button>
+
+        </div>
+
+    {% endfor %}
+{% endif %}
+{% endwith %}
+
+        <!-- HEADER -->
+        <div class="title-row">
+
+            <div class="location-icon">
+                <i class="fa-solid fa-location-dot"></i>
+            </div>
+
+            <div>
+
+                <div class="title">
+                    Select Clinic by Location
+                </div>
+
+                <div class="subtitle">
+                    Choose your preferred area to find nearby clinics
+                </div>
+
+            </div>
+
+        </div>
+
+
+        <!-- LOCATION -->
+        <form method="GET" action="/booking">
+
+            <label class="form-label">
+                Choose Location
+            </label>
+
+            <select
+            name="location"
+            class="form-select"
+            onchange="this.form.submit()">
+
+                <option value="">
+                    Select a location
+                </option>
+
+                <option value="Bangi"
+                {% if selected_location == 'Bangi' %}
+                selected
+                {% endif %}>
+                    Bangi
+                </option>
+
+                <option value="Kuala Lumpur"
+                {% if selected_location == 'Kuala Lumpur' %}
+                selected
+                {% endif %}>
+                    Kuala Lumpur
+                </option>
+
+                <option value="Petaling Jaya"
+                {% if selected_location == 'Petaling Jaya' %}
+                selected
+                {% endif %}>
+                    Petaling Jaya
+                </option>
+
+                <option value="Shah Alam"
+                {% if selected_location == 'Shah Alam' %}
+                selected
+                {% endif %}>
+                    Shah Alam
+                </option>
+
+            </select>
+
+        </form>
+
+
+        {% if clinics %}
+
+        <!-- CLINIC FORM -->
+        <form action="/triage" method="GET">
+
+            <input
+            type="hidden"
+            name="clinic"
+            id="selectedClinic">
+
+
+            <!-- CLINIC LIST -->
+            <div class="clinic-list">
+
+                {% for clinic in clinics %}
+
+                    <div class="clinic-card"
+
+                    {% if clinic.display_status == 'Open' %}
+
+                    onclick="selectClinic(this, '{{ clinic.clinic_name }}')"
+
+                    {% endif %}
+
+                    >
+                <!-- CLINIC NAME -->
+                <div class="clinic-name">
+
+                    {{ clinic.clinic_name }}
+
+                    {% if clinic.display_status == 'Open' %}
+
+                        <span class="badge bg-success ms-2">
+                            Open
+                        </span>
+
+                    {% elif clinic.display_status == 'Closed' %}
+
+                        <span class="badge bg-danger ms-2">
+                            Closed
+                        </span>
+
+                    {% elif clinic.display_status == 'Temporary Closed' %}
+
+                        <span class="badge bg-warning text-dark ms-2">
+                            Temporary Closed
+                        </span>
+
+                    {% endif %}
+                    {% if clinic.display_status == "Temporary Closed" %}
+
+<div class="alert alert-warning mt-2">
+    This clinic is temporarily closed.
+    Booking is currently unavailable.
+</div>
+
+{% elif clinic.display_status == "Permanently Closed" %}
+
+<div class="alert alert-dark mt-2">
+    This clinic has permanently closed.
+</div>
+
+{% elif clinic.display_status == "Closed" %}
+
+<div class="alert alert-danger mt-2">
+    Outside operating hours.
+    Booking is unavailable.
+</div>
+
+{% endif %}
+
+                    </div>
+
+                    <!-- DETAILS -->
+                    <div class="clinic-info">
+                        🏥 {{ clinic.clinic_type }}
+                    </div>
+
+                    <div class="clinic-info">
+                        📍 {{ clinic.address }}
+                    </div>
+
+                    <div class="clinic-info">
+                        📞 {{ clinic.contact_number }}
+                    </div>
+
+
+<div class="clinic-info">
+
+    <strong>Operating Hours:</strong><br>
+
+    {% if clinic.opening_time_str and clinic.closing_time_str %}
+
+        {{ clinic.opening_time_str }}
+        -
+        {{ clinic.closing_time_str }}
+
+    {% else %}
+
+        Not Available
+
+    {% endif %}
+
+</div>
+
+                    <div class="clinic-info">
+    <strong>Clinic Status:</strong>
+
+    {% if clinic.status == "Open" %}
+        <span class="badge bg-success">Open</span>
+
+    {% elif clinic.status == "Temporary Closed" %}
+        <span class="badge bg-warning text-dark">
+            Temporary Closed
+        </span>
+
+    {% elif clinic.status == "Permanently Closed" %}
+        <span class="badge bg-dark">
+            Permanently Closed
+        </span>
+    {% endif %}
+</div>
+
+<div class="clinic-info">
+    <strong>Current Status:</strong>
+
+    {% if clinic.display_status == "Open" %}
+        <span class="badge bg-success">Open</span>
+
+    {% elif clinic.display_status == "Closed" %}
+        <span class="badge bg-danger">Closed</span>
+
+    {% elif clinic.display_status == "Temporary Closed" %}
+        <span class="badge bg-warning text-dark">
+            Temporary Closed
+        </span>
+
+    {% elif clinic.display_status == "Permanently Closed" %}
+        <span class="badge bg-dark">
+            Permanently Closed
+        </span>
+    {% endif %}
+</div>
+
+
+                    <div class="clinic-info">
+                        🚗 {{ clinic.distance }}
+                    </div>
+
+                            {% if clinic.display_status == 'Open' %}
+
+                            <div class="waiting-badge">
+
+                                👥 {{ clinic.waiting_patients }}
+                                Patient{% if clinic.waiting_patients != 1 %}s{% endif %}
+                                Waiting
+
+                            </div>
+
+                            <div class="waiting-badge">
+
+                                ⏱ Estimated Wait:
+
+                                {% if clinic.dynamic_waiting_time == 0 %}
+
+                                    No Waiting
+
+                                {% else %}
+
+                                    {{ clinic.dynamic_waiting_time }}
+                                    mins
+
+                                {% endif %}
+
+                            </div>
+
+                            {% else %}
+
+                            <div class="waiting-badge text-muted">
+
+                                ⏱ Waiting Time:
+                                Not Available
+
+                            </div>
+
+                            {% endif %}
+
+                        <!-- SPECIALISTS -->
+
+                        {% if clinic.display_status == 'Open' %}
+
+                        <div class="specialist-box">
+
+                            <div class="specialist-title">
+                                Available Specialists
+                            </div>
+
+                         {% for doctor in clinic.doctors %}
+
+<div class="doctor-item">
+
+    <strong>👨‍⚕️ {{ doctor.name }}</strong>
+
+    <br>
+
+    <strong>{{ doctor.specialist }}</strong>
+
+    {% if doctor.description %}
+
+        <br>
+
+        <small class="text-muted">
+
+            {{ doctor.description }}
+
+        </small>
+
+    {% endif %}
+
+    <br><br>
+
+    {% if doctor.availability == "Available" %}
+
+        <span class="badge bg-success">
+
+            Available
+
+        </span>
+
+    {% elif doctor.availability == "On Leave" %}
+
+        <span class="badge bg-warning text-dark">
+
+            On Leave
+
+        </span>
+
+    {% elif doctor.availability == "Retired" %}
+
+        <span class="badge bg-dark">
+
+            Retired
+
+        </span>
+
+    {% else %}
+
+        <span class="badge bg-danger">
+
+            Unavailable
+
+        </span>
+
+    {% endif %}
+
+</div>
+
+{% endfor %}  
+
+                        </div>
+
+                        {% else %}
+
+                        <div class="alert alert-secondary mt-3">
+
+                                This clinic is currently closed.
+                                Doctor availability and appointment booking
+                                are unavailable at this time.
+
+                        </div>
+
+                        {% endif %}
+
+                        <!-- MAP -->
+                        <iframe
+                        src="{{ clinic.map_link }}"
+                        loading="lazy"
+                        allowfullscreen="">
+                        </iframe>
+
+                        </div>
+
+                        {% endfor %}
+
+                        </div>
+
+
+            <!-- CONTINUE BUTTON -->
+                        <button
+                        type="submit"
+                        class="continue-btn"
+                        id="continueBtn"
+                        disabled>
+
+                            Continue to Triage
+
+                        </button>
+
+                        <div class="text-center mt-2 text-muted">
+
+                            Only clinics that are currently open
+                            can be selected.
+
+                        </div>
+
+        </form>
+
+        {% elif selected_location %}
+
+        <!-- NO CLINICS -->
+        <div class="empty-state">
+
+            <i class="fa-solid fa-hospital"></i>
+
+            <h5>
+                No clinics found
+            </h5>
+
+            <p>
+                No clinics available in this location yet.
+            </p>
+
+        </div>
+
+        {% else %}
+
+        <!-- EMPTY -->
+        <div class="empty-state">
+
+            <i class="fa-solid fa-location-dot"></i>
+
+            <h5>
+                Select a location
+            </h5>
+
+            <p>
+                Clinic suggestions will appear here.
+            </p>
+
+        </div>
+
+        {% endif %}
+
+    </div>
+
+</div>
+
+
+<script>
+
+function selectClinic(card, clinicName){
+
+    // REMOVE OLD SELECTION
+    let cards =
+    document.querySelectorAll('.clinic-card');
+
+    cards.forEach(c => {
+        c.classList.remove('selected');
+    });
+
+    // ADD NEW SELECTION
+    card.classList.add('selected');
+
+    // STORE CLINIC
+    document.getElementById('selectedClinic').value =
+    clinicName;
+
+    // ENABLE BUTTON
+    document.getElementById('continueBtn').disabled =
+    false;
+}
+
+// =========================
+// AUTO HIDE FLASH MESSAGE
+// =========================
+
+setTimeout(function(){
+
+    let alerts = document.querySelectorAll(".alert");
+
+    alerts.forEach(function(alert){
+
+        let bsAlert = bootstrap.Alert.getOrCreateInstance(alert);
+
+        bsAlert.close();
+
+    });
+
+}, 5000);
+
+</script>
+
+<!-- Bootstrap JavaScript -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+</body>
+</html>

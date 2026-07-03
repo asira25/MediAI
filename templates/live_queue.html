@@ -1,0 +1,1192 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1.0">
+
+    <title>MEDIAI Live Queue</title>
+
+    <!-- Bootstrap -->
+    <link
+        href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+        rel="stylesheet">
+
+    <!-- Font Awesome -->
+    <link
+        rel="stylesheet"
+        href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+    <style>
+
+        body{
+
+            background: #eef2ff;
+
+            font-family: Arial, sans-serif;
+
+        }
+
+        .main-container{
+
+            max-width: 1000px;
+
+            margin: 30px auto;
+
+        }
+
+        .top-link{
+
+            margin-bottom: 20px;
+
+            font-size: 14px;
+
+            font-weight: 600;
+
+        }
+
+        .top-link a{
+
+            text-decoration: none;
+
+            color: #444;
+
+        }
+
+        .top-card{
+
+            background: white;
+
+            border-radius: 18px;
+
+            padding: 20px 25px;
+
+            display: flex;
+
+            justify-content: space-between;
+
+            align-items: center;
+
+            margin-bottom: 20px;
+
+        }
+
+        .queue-card{
+
+            background: white;
+
+            border-radius: 20px;
+
+            padding: 25px;
+
+        }
+
+        .doctor-section{
+
+            display: flex;
+
+            justify-content: space-between;
+
+            align-items: start;
+
+        }
+
+        .status-badge{
+
+            background: #2563eb;
+
+            color: white;
+
+            font-size: 12px;
+
+            padding: 5px 12px;
+
+            border-radius: 50px;
+
+            font-weight: bold;
+
+        }
+
+        .priority-badge{
+
+            background: #22c55e;
+
+            color: white;
+
+            font-size: 12px;
+
+            padding: 6px 14px;
+
+            border-radius: 50px;
+
+            font-weight: bold;
+
+        }
+
+        .stats{
+
+            margin-top: 25px;
+
+            display: grid;
+
+                grid-template-columns: repeat(auto-fit,minmax(180px,1fr));
+
+            gap: 20px;
+
+        }
+
+        .stat-box{
+
+            background: #f8fafc;
+
+            border-radius: 18px;
+
+            padding: 25px;
+
+            text-align: center;
+
+        }
+
+        .stat-box i{
+
+            font-size: 22px;
+
+            margin-bottom: 10px;
+
+        }
+
+        .progress-title{
+
+            margin-top: 25px;
+
+            display: flex;
+
+            justify-content: space-between;
+
+            font-size: 13px;
+
+            font-weight: bold;
+
+        }
+
+        .custom-progress{
+
+            height: 14px;
+
+            background: #dbeafe;
+
+            border-radius: 50px;
+
+            overflow: hidden;
+
+            margin-top: 8px;
+
+        }
+
+        .progress-fill{
+
+            height: 100%;
+
+            background: #111827;
+
+            width: 0%;
+
+            transition: 0.5s;
+
+        }
+
+        .ready-box{
+
+            background: #00d84a;
+
+            color: white;
+
+            padding: 60px 20px;
+
+            border-radius: 20px;
+
+            margin-top: 20px;
+
+            text-align: center;
+
+        }
+
+        .waiting-box{
+
+            background: #eff6ff;
+
+            padding: 40px;
+
+            border-radius: 20px;
+
+            margin-top: 20px;
+
+            text-align: center;
+
+        }
+
+        .queue-info{
+
+            background: #eef2ff;
+
+            border-radius: 12px;
+
+            padding: 15px;
+
+            margin-top: 20px;
+
+            font-size: 14px;
+
+            color: #444;
+
+        }
+
+        .symptom-box{
+
+            background: #faf5ff;
+
+            border-radius: 12px;
+
+            padding: 15px;
+
+            margin-top: 15px;
+
+            font-size: 14px;
+
+        }
+
+        .live-status{
+
+            text-align: center;
+
+            margin-top: 20px;
+
+            color: #22c55e;
+
+            font-size: 14px;
+
+            font-weight: bold;
+
+        }
+
+        footer{
+
+            background: #1e3a8a;
+
+            color: white;
+
+            margin-top: 50px;
+
+            padding: 40px;
+
+        }
+
+        .footer-grid{
+
+            display: grid;
+
+            grid-template-columns: 1fr 1fr;
+
+            gap: 30px;
+
+        }
+
+    </style>
+
+</head>
+
+<body>
+
+<div class="main-container">
+
+    <!-- BACK -->
+    <div class="top-link">
+
+        <a href="/patient_dashboard">
+
+            <i class="fa fa-arrow-left"></i>
+            Back to Dashboard
+
+        </a>
+
+    </div>
+
+    <!-- TOP BAR -->
+    <div class="top-card">
+
+        <div>
+
+            <h5>
+
+                <i class="fa fa-clock text-primary"></i>
+
+                Live Queue Status
+
+            </h5>
+
+            <small class="text-muted">
+
+                Real-time updates on your appointment
+
+            </small>
+
+        </div>
+
+        <div class="text-end">
+
+            <small>
+
+                Current Time
+
+            </small>
+
+            <h5 id="clock"></h5>
+
+        </div>
+
+    </div>
+
+
+
+<div class="queue-card">
+{% if is_today %}
+
+
+<div class="doctor-section">
+
+    <div>
+
+        <h4 id="doctor_name"></h4>
+
+        <div class="mb-2">
+
+            <span 
+            class="status-badge"
+            id="status_badge">
+
+                BOOKED
+
+            </span>
+
+        </div>
+
+        <div id="clinic"></div>
+
+        <small>
+
+            Scheduled:
+            <span id="appointment_time"></span>
+
+        </small>
+
+    </div>
+
+    <div>
+
+        <span
+            class="priority-badge"
+            id="priority">
+
+        </span>
+
+    </div>
+
+</div>
+
+<!-- STATS -->
+<div class="stats">
+
+    <div class="stat-box">
+
+        <i class="fa fa-users text-primary"></i>
+
+        <h1 id="position"></h1>
+
+        <small>
+            Current Position
+        </small>
+
+    </div>
+
+    <div class="stat-box">
+
+        <i class="fa fa-clock text-warning"></i>
+
+        <h1 id="ahead"></h1>
+
+        <small>
+            Patients Ahead
+        </small>
+
+    </div>
+
+    <div class="stat-box">
+
+        <i class="fa fa-circle text-dark"></i>
+
+        <h1 id="waiting_people"></h1>
+
+        <small>
+            People Waiting
+        </small>
+
+    </div>
+
+    <!-- NEW -->
+    <div class="stat-box">
+
+        <i class="fa fa-stethoscope text-success"></i>
+
+        <h1 id="now_serving"></h1>
+
+        <small>
+            Now Serving
+        </small>
+
+    </div>
+
+    <!-- NEW -->
+    <div class="stat-box">
+
+        <i class="fa fa-ticket text-primary"></i>
+
+        <h1 id="your_queue"></h1>
+
+        <small>
+            Your Queue Number
+        </small>
+
+    </div>
+
+</div>
+
+<!-- PROGRESS -->
+<div class="progress-title">
+
+    <span>
+
+        Your Turn Status
+
+    </span>
+
+    <span id="progress_text"></span>
+
+</div>
+
+<div class="custom-progress">
+
+    <div
+        class="progress-fill"
+        id="progress_fill">
+
+    </div>
+
+</div>
+
+<!-- =========================
+APPOINTMENT TIMELINE
+========================= -->
+
+<div class="card mt-4">
+
+    <div class="card-body">
+
+        <h5 class="mb-4">
+
+            <i class="fa fa-route text-primary"></i>
+
+            Appointment Timeline
+
+        </h5>
+
+        <div id="timeline_box">
+
+        </div>
+
+    </div>
+
+</div>
+
+
+
+<!-- STATUS -->
+<div id="status_box"></div>
+
+<!-- =========================
+CHECK IN
+========================= -->
+
+<div
+    id="checkin_section"
+    class="text-center mt-4">
+</div>
+
+<!-- QUEUE INFO -->
+<div
+    class="queue-info"
+    id="queue_info">
+
+</div>
+
+<!-- SYMPTOMS -->
+<div
+    class="symptom-box"
+    id="symptoms_box">
+
+</div>
+
+{% else %}
+
+
+
+<!-- FUTURE APPOINTMENT UI -->
+
+<div class="text-center py-5">
+
+    <i
+    class="fa-solid fa-circle-exclamation"
+    style="
+        font-size:80px;
+        color:#9ca3af;
+    ">
+    </i>
+
+    <h1 class="fw-bold mt-4">
+
+        No Active Queue Today
+
+    </h1>
+
+    <p
+    class="text-muted fs-4">
+
+        You don't have any appointments
+        scheduled for today
+
+    </p>
+
+    <div
+    class="mx-auto mt-5 p-4 rounded-4"
+    style="
+        max-width:600px;
+        background:#eef4ff;
+        border:1px solid #bfdbfe;
+    ">
+
+        <div class="d-flex justify-content-between">
+
+            <div class="text-start">
+
+                <h3 class="fw-bold text-primary">
+
+                    Your Upcoming Appointment
+
+                </h3>
+
+                <h4 class="fw-bold mt-4">
+
+                    {{ appointment.doctor_name }}
+
+                </h4>
+
+                <h5>
+
+                    {{ appointment.clinic }}
+
+                </h5>
+
+                <h5 class="mt-3">
+
+                    {{ appointment.date }}
+                    at
+                    {{ appointment.time }}
+
+                </h5>
+
+            </div>
+
+            <div>
+
+                <span class="badge bg-primary fs-6">
+
+                    {{ appointment.priority }}
+
+                </span>
+
+            </div>
+
+        </div>
+
+        <p class="text-primary mt-4 mb-0">
+
+            Your live queue status will be
+            available on your appointment day
+
+        </p>
+
+    </div>
+
+    <a
+    href="/booking"
+    class="btn btn-dark btn-lg mt-5 px-5">
+
+        Book an Appointment
+
+    </a>
+
+</div>
+
+{% endif %}
+</div>
+
+
+
+    <!-- LIVE STATUS -->
+    <div class="live-status">
+
+        ● Live updates every 30 seconds
+
+    </div>
+
+</div>
+
+<!-- FOOTER -->
+<footer>
+
+    <div class="footer-grid">
+
+        <div>
+
+            <h5>
+
+                About MEDIAI
+
+            </h5>
+
+            <small>
+
+                Your trusted AI-powered healthcare management system
+                for efficient patient care and seamless appointments.
+
+            </small>
+
+        </div>
+
+        <div>
+
+            <h5>
+
+                Contact
+
+            </h5>
+
+            <small>
+
+                Email: info@mediai.com
+
+                <br><br>
+
+                Phone: +60 3-1234 5678
+
+            </small>
+
+        </div>
+
+    </div>
+
+</footer>
+
+<script>
+
+    // =========================
+    // GET APPOINTMENT ID
+    // =========================
+ const appointmentId =
+        "{{ appointment_id }}";
+
+
+    // =========================
+    // LIVE CLOCK
+    // =========================
+    function updateClock(){
+
+        document.getElementById(
+            "clock"
+        ).innerHTML =
+
+            new Date().toLocaleTimeString();
+
+    }
+
+    updateClock();
+
+    setInterval(updateClock, 1000);
+
+
+
+
+// =========================
+// FETCH QUEUE
+// =========================
+async function fetchQueue(){
+
+    const response = await fetch(
+        `/live_queue/${appointmentId}`
+    );
+
+    const data = await response.json();
+
+    // BASIC INFO
+    document.getElementById("doctor_name").innerHTML =
+        data.doctor_name;
+
+    document.getElementById("clinic").innerHTML =
+        data.clinic;
+
+    document.getElementById("priority").innerHTML =
+        data.priority + " PRIORITY";
+
+    document.getElementById("appointment_time").innerHTML =
+        data.time;
+
+// =========================
+// CHECK IN BUTTON
+// =========================
+
+let checkinHTML = "";
+
+if(data.allow_checkin){
+
+    checkinHTML = `
+
+        <form action="/check_in/${appointmentId}" method="POST">
+
+            <button
+                class="btn btn-primary btn-lg">
+
+                <i class="fa fa-check-circle"></i>
+
+                Check In
+
+            </button>
+
+        </form>
+
+    `;
+
+}
+
+document.getElementById("checkin_section").innerHTML =
+    checkinHTML;
+
+
+
+
+    // STATS
+    document.getElementById("position").innerHTML =
+        "#" + data.current_position;
+
+    document.getElementById("waiting_people").innerHTML =
+        data.people_waiting;
+
+    document.getElementById("now_serving").innerHTML =
+    "Q" + String(data.now_serving).padStart(3, '0');
+
+document.getElementById("your_queue").innerHTML =
+    "Q" + String(data.queue_number).padStart(3, '0');
+
+    // PROGRESS
+    document.getElementById("progress_text").innerHTML =
+        data.progress + "%";
+
+    document.getElementById("progress_fill").style.width =
+        data.progress + "%";
+
+// =========================
+// APPOINTMENT TIMELINE
+// =========================
+
+let timelineHTML = "";
+
+if(data.status === "Booked"){
+
+    timelineHTML = `
+
+        <div class="text-center">
+
+            ✅ Booked
+
+            <br>│<br>
+
+            ⚪ Waiting
+
+            <br>│<br>
+
+            ⚪ In Consultation
+
+            <br>│<br>
+
+            ⚪ Completed
+
+        </div>
+
+    `;
+
+}
+
+else if(data.status === "Waiting"){
+
+    timelineHTML = `
+
+        <div class="text-center">
+
+            ✅ Booked
+
+            <br>│<br>
+
+            🟢 Waiting
+
+            <br>│<br>
+
+            ⚪ In Consultation
+
+            <br>│<br>
+
+            ⚪ Completed
+
+        </div>
+
+    `;
+
+}
+
+else if(data.status === "In-Consultation"){
+
+    timelineHTML = `
+
+        <div class="text-center">
+
+            ✅ Booked
+
+            <br>│<br>
+
+            ✅ Waiting
+
+            <br>│<br>
+
+            🟢 In Consultation
+
+            <br>│<br>
+
+            ⚪ Completed
+
+        </div>
+
+    `;
+
+}
+
+else if(data.status === "Completed"){
+
+    timelineHTML = `
+
+        <div class="text-center">
+
+            ✅ Booked
+
+            <br>│<br>
+
+            ✅ Waiting
+
+            <br>│<br>
+
+            ✅ In Consultation
+
+            <br>│<br>
+
+            🟢 Completed
+
+        </div>
+
+    `;
+
+}
+
+else if(data.status === "Missed"){
+
+    timelineHTML = `
+
+        <div class="text-center">
+
+            ✅ Booked
+
+            <br>│<br>
+
+            ❌ Missed Appointment
+
+        </div>
+
+    `;
+
+}
+
+document.getElementById("timeline_box").innerHTML =
+    timelineHTML;
+
+
+    
+    // =========================
+    // COMPLETED
+    // =========================
+    if(data.status === "Completed"){
+
+        document.querySelector(".queue-card").style.border =
+            "4px solid #16a34a";
+
+        document.getElementById("status_badge").innerHTML =
+            "COMPLETED";
+
+        document.getElementById("status_badge").style.background =
+            "#16a34a";
+
+        document.getElementById("ahead").innerHTML = 0;
+
+        document.getElementById("progress_text").innerHTML =
+            "100%";
+
+        document.getElementById("progress_fill").style.width =
+            "100%";
+
+        document.getElementById("status_box").innerHTML = `
+
+
+
+            <div class="alert alert-success mt-4 text-center">
+
+                <h2>
+                    ✅ Consultation Completed
+                </h2>
+
+                <p class="mb-0">
+                    Thank you for visiting MEDIAI
+                </p>
+
+            </div>
+
+        `;
+
+    }
+
+
+
+
+    
+    // =========================
+    // IN CONSULTATION
+    // =========================
+    else if(data.status === "In-Consultation"){
+
+        document.querySelector(".queue-card").style.border =
+            "4px solid #22c55e";
+
+        document.getElementById("status_badge").innerHTML =
+            "IN CONSULTATION";
+
+        document.getElementById("status_badge").style.background =
+            "#22c55e";
+
+        document.getElementById("ahead").innerHTML = 0;
+
+        document.getElementById("progress_text").innerHTML =
+            "95%";
+
+        document.getElementById("progress_fill").style.width =
+            "95%";
+
+        document.getElementById("status_box").innerHTML = `
+
+            <div class="alert alert-success mt-4 text-center">
+
+                <h4>
+                    ✅ You're being served!
+                </h4>
+
+                <p class="mb-0">
+                    Your consultation is in progress
+                </p>
+
+            </div>
+
+            <div class="waiting-box">
+
+                <h4>
+                    Estimated Waiting Time
+                </h4>
+
+                <h1 class="text-success">
+                    In Consultation
+                </h1>
+
+                <p>
+                    You are currently being served
+                </p>
+
+            </div>
+
+        `;
+
+    }
+
+    
+
+
+    // =========================
+    // READY TO BE CALLED
+    // =========================
+    else if(data.patients_ahead === 0){
+
+        document.getElementById("ahead").innerHTML = 0;
+
+        document.getElementById("status_box").innerHTML = `
+
+            <div class="ready-box">
+
+                <i class="fa fa-circle-check fa-4x"></i>
+
+                <h1 class="mt-4">
+                    Ready to be Called
+                </h1>
+
+                <h4>
+                    Please proceed to consultation room
+                </h4>
+
+                <br>
+
+                <button class="btn btn-success">
+
+                    <i class="fa fa-clock"></i>
+
+                    Expected call time: Now
+
+                </button>
+
+            </div>
+
+        `;
+
+    }
+
+    // =========================
+    // WAITING
+    // =========================
+    else{
+
+        document.getElementById("ahead").innerHTML =
+            data.patients_ahead;
+
+        document.getElementById("status_box").innerHTML = `
+
+            <div class="waiting-box">
+
+                <h4>
+                    Estimated Waiting Time
+                </h4>
+
+                <h1>
+                    ${data.wait_time}
+                </h1>
+
+                <p>
+                    Based on ${data.patients_ahead}
+                    patients ahead
+                </p>
+
+            </div>
+
+        `;
+
+    }
+
+// =========================
+// QUEUE FINISHED
+// =========================
+
+if(data.total_queue === 0){
+
+    document.getElementById("queue_info").innerHTML = `
+
+        <div class="alert alert-success mt-4 text-center">
+
+            <h4>🎉 Queue Completed</h4>
+
+            <p class="mb-0">
+
+                There are currently no patients waiting.<br>
+
+                Thank you for choosing MEDIAI.
+
+            </p>
+
+        </div>
+
+    `;
+
+}
+else{
+
+    // =========================
+    // QUEUE INFO
+    // =========================
+
+    document.getElementById("queue_info").innerHTML = `
+
+        Shared Clinic Queue:
+
+        You are position
+        ${data.current_position}
+        out of
+        ${data.total_queue}
+        patients in
+        ${data.clinic}.
+
+        The queue is prioritized based on urgency and booking time.
+
+    `;
+
+}
+
+// =========================
+// SYMPTOMS
+// =========================
+
+document.getElementById("symptoms_box").innerHTML = `
+
+    Your symptoms:
+    ${data.symptoms}
+
+`;
+
+}
+
+// INITIAL LOAD
+fetchQueue();
+
+// =========================
+// AUTO REFRESH LIVE QUEUE
+// =========================
+setInterval(fetchQueue, 10000);
+
+
+
+
+
+
+</script>
+
+</body>
+
+</html>
