@@ -2178,11 +2178,6 @@ def confirm_booking():
 
         return redirect(url_for("booking"))
 
-    # -------------------------
-    # Operating hours check removed:
-    # Patients may book future slots even when clinic is currently closed.
-    # Only Temporary/Permanently Closed clinics are hard-blocked above.
-    # -------------------------
 
 
     # =========================
