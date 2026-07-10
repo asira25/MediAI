@@ -2921,106 +2921,112 @@ def live_queue(appointment_id):
 
         appointment["status"] = "Missed"
 
+    # =========================
+    # AUTO STATUS TRANSITIONS
+    # (Skipped if appointment is already Missed)
+    # =========================
 
-    cursor.execute("""
-
-        SELECT consultation_duration
-
-        FROM doctors
-
-        WHERE id=%s
-
-    """, (
-
-        appointment['doctor_id'],
-
-    ))
-
-    doctor = cursor.fetchone()
-
-    consultation_duration = (
-
-        doctor['consultation_duration']
-
-        if doctor and doctor['consultation_duration']
-
-        else 15
-
-    )
-
-    waiting_time = appointment_datetime
-
-    consultation_start = appointment_datetime + timedelta(minutes=15)
-
-    consultation_end = consultation_start + timedelta(
-
-        minutes=consultation_duration
-
-    )
-
-    new_status = appointment['status']
-
-    # -------------------------
-    # Booked -> Waiting
-    # -------------------------
-
-    if (
-
-        current_datetime >= waiting_time
-
-        and current_datetime < consultation_start
-
-    ):
-
-        new_status = "Waiting"
-
-    # -------------------------
-    # Waiting -> In-Consultation
-    # -------------------------
-
-    elif (
-
-        current_datetime >= consultation_start
-
-        and current_datetime < consultation_end
-
-    ):
-
-        new_status = "In-Consultation"
-
-    # -------------------------
-    # Consultation Finished
-    # -------------------------
-
-    elif current_datetime >= consultation_end:
-
-        new_status = "Completed"
-
-    # -------------------------
-    # Update Database
-    # -------------------------
-
-    if new_status != appointment["status"]:
+    if appointment["status"] != "Missed":
 
         cursor.execute("""
 
-            UPDATE appointments
+            SELECT consultation_duration
 
-            SET status=%s
+            FROM doctors
 
             WHERE id=%s
 
         """, (
 
-            new_status,
-
-            appointment["id"]
+            appointment['doctor_id'],
 
         ))
 
-        conn.commit()
+        doctor = cursor.fetchone()
 
-        appointment["status"] = new_status
+        consultation_duration = (
+
+            doctor['consultation_duration']
+
+            if doctor and doctor['consultation_duration']
+
+            else 15
+
+        )
+
+        waiting_time = appointment_datetime
+
+        consultation_start = appointment_datetime + timedelta(minutes=15)
+
+        consultation_end = consultation_start + timedelta(
+
+            minutes=consultation_duration
+
+        )
+
+        new_status = appointment['status']
+
+        # -------------------------
+        # Booked -> Waiting
+        # -------------------------
+
+        if (
+
+            current_datetime >= waiting_time
+
+            and current_datetime < consultation_start
+
+        ):
+
+            new_status = "Waiting"
+
+        # -------------------------
+        # Waiting -> In-Consultation
+        # -------------------------
+
+        elif (
+
+            current_datetime >= consultation_start
+
+            and current_datetime < consultation_end
+
+        ):
+
+            new_status = "In-Consultation"
+
+        # -------------------------
+        # Consultation Finished
+        # -------------------------
+
+        elif current_datetime >= consultation_end:
+
+            new_status = "Completed"
+
+        # -------------------------
+        # Update Database
+        # -------------------------
+
+        if new_status != appointment["status"]:
+
+            cursor.execute("""
+
+                UPDATE appointments
+
+                SET status=%s
+
+                WHERE id=%s
+
+            """, (
+
+                new_status,
+
+                appointment["id"]
+
+            ))
+
+            conn.commit()
+
+            appointment["status"] = new_status
 
     # =========================
     # CHECK HIGH + URGENT
