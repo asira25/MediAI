@@ -136,7 +136,7 @@
           Complete patient information for comprehensive care
         </div>
 
-        <form method="POST" action="/register">
+        <form method="POST" action="/register" class="needs-validation" novalidate>
           <!-- PERSONAL -->
           <div class="section-title">Personal Information</div>
 
@@ -150,6 +150,7 @@
               placeholder="Enter your full name"
               required
             />
+            <div class="invalid-feedback">Please enter your full name.</div>
           </div>
 
           <div class="row">
@@ -163,16 +164,18 @@
                 placeholder="Age"
                 required
               />
+              <div class="invalid-feedback">Please enter your age.</div>
             </div>
 
             <div class="col-md-6 mb-3">
               <label class="form-label">Gender *</label>
 
-              <select name="gender" class="form-select">
-                <option>Select gender</option>
+              <select name="gender" class="form-select" required>
+                <option value="">Select gender</option>
                 <option>Male</option>
                 <option>Female</option>
               </select>
+              <div class="invalid-feedback">Please select your gender.</div>
             </div>
           </div>
 
@@ -187,7 +190,9 @@
               name="contact_number"
               class="form-control"
               placeholder="+60 12-345 6789"
+              required
             />
+            <div class="invalid-feedback">Please enter your contact number.</div>
           </div>
 
           <div class="mb-3">
@@ -198,7 +203,9 @@
               name="email"
               class="form-control"
               placeholder="your@email.com"
+              required
             />
+            <div class="invalid-feedback">Please enter a valid email address.</div>
           </div>
 
           <div class="mb-3">
@@ -220,7 +227,9 @@
               name="emergency_contact"
               class="form-control"
               placeholder="+60 13-456 6789"
+              required
             />
+            <div class="invalid-feedback">Please enter an emergency contact number.</div>
           </div>
 
           <!-- MEDICAL -->
@@ -265,7 +274,9 @@
               name="username"
               class="form-control"
               placeholder="Choose a username"
+              required
             />
+            <div class="invalid-feedback">Please choose a username.</div>
           </div>
 
           <div class="mb-3">
@@ -273,16 +284,27 @@
 
             <input
               type="password"
+              id="password"
               name="password"
               class="form-control"
               placeholder="******"
+              required
             />
+            <div class="invalid-feedback">Please enter a password.</div>
           </div>
 
           <div class="mb-3">
             <label class="form-label">Confirm Password *</label>
 
-            <input type="password" class="form-control" placeholder="******" />
+            <input
+              type="password"
+              id="confirm_password"
+              name="confirm_password"
+              class="form-control"
+              placeholder="******"
+              required
+            />
+            <div class="invalid-feedback" id="confirm-password-feedback">Please confirm your password.</div>
           </div>
 
           <button class="btn-register">Register</button>
@@ -294,5 +316,35 @@
         </div>
       </div>
     </div>
+
+    <script>
+      document.querySelector('form').addEventListener('submit', function(e) {
+        const form = e.currentTarget;
+        const password = document.getElementById('password').value;
+        const confirmInput = document.getElementById('confirm_password');
+        const feedback = document.getElementById('confirm-password-feedback');
+        
+        let valid = true;
+        
+        if (confirmInput.value === '') {
+          confirmInput.setCustomValidity('Please confirm your password.');
+          feedback.textContent = 'Please confirm your password.';
+          valid = false;
+        } else if (password !== confirmInput.value) {
+          confirmInput.setCustomValidity('Passwords do not match.');
+          feedback.textContent = 'Passwords do not match!';
+          valid = false;
+        } else {
+          confirmInput.setCustomValidity('');
+        }
+        
+        if (!form.checkValidity() || !valid) {
+          e.preventDefault();
+          e.stopPropagation();
+        }
+        
+        form.classList.add('was-validated');
+      });
+    </script>
   </body>
 </html>
