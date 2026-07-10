@@ -118,6 +118,20 @@
         color: #2563eb;
         font-weight: 600;
       }
+
+      .input-group-text {
+        cursor: pointer;
+      }
+
+      /* Password strength bar */
+      #password-strength-bar {
+        height: 4px;
+        border-radius: 2px;
+        transition: width 0.3s ease, background-color 0.3s ease;
+        width: 0%;
+        background-color: transparent;
+        margin-top: 4px;
+      }
     </style>
   </head>
 
@@ -136,6 +150,18 @@
           Complete patient information for comprehensive care
         </div>
 
+        <!-- FLASH MESSAGES -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            {% for category, message in messages %}
+              <div class="alert alert-{{ category if category in ['danger','warning','success','info'] else 'danger' }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+              </div>
+            {% endfor %}
+          {% endif %}
+        {% endwith %}
+
         <form method="POST" action="/register" class="needs-validation" novalidate>
           <!-- PERSONAL -->
           <div class="section-title">Personal Information</div>
@@ -148,6 +174,7 @@
               name="full_name"
               class="form-control"
               placeholder="Enter your full name"
+              value="{{ request.form.get('full_name', '') }}"
               required
             />
             <div class="invalid-feedback">Please enter your full name.</div>
@@ -162,6 +189,9 @@
                 name="age"
                 class="form-control"
                 placeholder="Age"
+                min="0"
+                max="150"
+                value="{{ request.form.get('age', '') }}"
                 required
               />
               <div class="invalid-feedback">Please enter your age.</div>
@@ -172,8 +202,8 @@
 
               <select name="gender" class="form-select" required>
                 <option value="">Select gender</option>
-                <option>Male</option>
-                <option>Female</option>
+                <option {{ 'selected' if request.form.get('gender') == 'Male' }}>Male</option>
+                <option {{ 'selected' if request.form.get('gender') == 'Female' }}>Female</option>
               </select>
               <div class="invalid-feedback">Please select your gender.</div>
             </div>
@@ -186,13 +216,15 @@
             <label class="form-label">Contact Number *</label>
 
             <input
-              type="text"
+              type="tel"
               name="contact_number"
               class="form-control"
               placeholder="+60 12-345 6789"
+              pattern="[\+\d\s\-\(\)]{6,20}"
+              value="{{ request.form.get('contact_number', '') }}"
               required
             />
-            <div class="invalid-feedback">Please enter your contact number.</div>
+            <div class="invalid-feedback">Please enter a valid contact number.</div>
           </div>
 
           <div class="mb-3">
@@ -203,6 +235,7 @@
               name="email"
               class="form-control"
               placeholder="your@email.com"
+              value="{{ request.form.get('email', '') }}"
               required
             />
             <div class="invalid-feedback">Please enter a valid email address.</div>
@@ -216,6 +249,7 @@
               name="address"
               class="form-control"
               placeholder="Enter your full address"
+              value="{{ request.form.get('address', '') }}"
             />
           </div>
 
@@ -223,10 +257,12 @@
             <label class="form-label">Emergency Contact Number *</label>
 
             <input
-              type="text"
+              type="tel"
               name="emergency_contact"
               class="form-control"
               placeholder="+60 13-456 6789"
+              pattern="[\+\d\s\-\(\)]{6,20}"
+              value="{{ request.form.get('emergency_contact', '') }}"
               required
             />
             <div class="invalid-feedback">Please enter an emergency contact number.</div>
@@ -247,8 +283,7 @@
               class="form-control"
               rows="2"
               placeholder="List any known allergies (e.g. Penicillin, Peanuts, Latex)"
-            >
-            </textarea>
+            >{{ request.form.get('allergies', '') }}</textarea>
           </div>
 
           <div class="mb-3">
@@ -259,8 +294,7 @@
               class="form-control"
               rows="2"
               placeholder="List any chronic conditions or significant medical history"
-            >
-            </textarea>
+            >{{ request.form.get('medical_history', '') }}</textarea>
           </div>
 
           <!-- ACCOUNT -->
@@ -274,6 +308,7 @@
               name="username"
               class="form-control"
               placeholder="Choose a username"
+              value="{{ request.form.get('username', '') }}"
               required
             />
             <div class="invalid-feedback">Please choose a username.</div>
@@ -282,29 +317,41 @@
           <div class="mb-3">
             <label class="form-label">Password *</label>
 
-            <input
-              type="password"
-              id="password"
-              name="password"
-              class="form-control"
-              placeholder="******"
-              required
-            />
-            <div class="invalid-feedback">Please enter a password.</div>
+            <div class="input-group">
+              <input
+                type="password"
+                id="password"
+                name="password"
+                class="form-control"
+                placeholder="Min. 6 characters"
+                minlength="6"
+                required
+              />
+              <span class="input-group-text" onclick="togglePasswordVisibility('password', 'passwordEye')">
+                <i class="fa-solid fa-eye" id="passwordEye"></i>
+              </span>
+            </div>
+            <div id="password-strength-bar"></div>
+            <div class="invalid-feedback">Password must be at least 6 characters.</div>
           </div>
 
           <div class="mb-3">
             <label class="form-label">Confirm Password *</label>
 
-            <input
-              type="password"
-              id="confirm_password"
-              name="confirm_password"
-              class="form-control"
-              placeholder="******"
-              required
-            />
-            <div class="invalid-feedback" id="confirm-password-feedback">Please confirm your password.</div>
+            <div class="input-group">
+              <input
+                type="password"
+                id="confirm_password"
+                name="confirm_password"
+                class="form-control"
+                placeholder="Re-enter password"
+                required
+              />
+              <span class="input-group-text" onclick="togglePasswordVisibility('confirm_password', 'confirmEye')">
+                <i class="fa-solid fa-eye" id="confirmEye"></i>
+              </span>
+            </div>
+            <div class="invalid-feedback" id="confirm-password-feedback">Passwords do not match.</div>
           </div>
 
           <button class="btn-register">Register</button>
@@ -318,33 +365,101 @@
     </div>
 
     <script>
+      // ---- Toggle password visibility ----
+      function togglePasswordVisibility(inputId, eyeId) {
+        const input = document.getElementById(inputId);
+        const eye = document.getElementById(eyeId);
+        if (input.type === 'password') {
+          input.type = 'text';
+          eye.classList.remove('fa-eye');
+          eye.classList.add('fa-eye-slash');
+        } else {
+          input.type = 'password';
+          eye.classList.remove('fa-eye-slash');
+          eye.classList.add('fa-eye');
+        }
+      }
+
+      // ---- Password strength indicator ----
+      const passwordInput = document.getElementById('password');
+      const strengthBar = document.getElementById('password-strength-bar');
+
+      passwordInput.addEventListener('input', function() {
+        const val = this.value;
+        let score = 0;
+        if (val.length >= 6) score += 25;
+        if (val.length >= 10) score += 15;
+        if (/[a-z]/.test(val) && /[A-Z]/.test(val)) score += 20;
+        if (/\d/.test(val)) score += 20;
+        if (/[^a-zA-Z0-9]/.test(val)) score += 20;
+
+        strengthBar.style.width = Math.min(score, 100) + '%';
+        if (score < 30) {
+          strengthBar.style.backgroundColor = '#dc3545';
+        } else if (score < 60) {
+          strengthBar.style.backgroundColor = '#ffc107';
+        } else {
+          strengthBar.style.backgroundColor = '#198754';
+        }
+      });
+
+      // ---- Confirm password real-time validation ----
+      const confirmInput = document.getElementById('confirm_password');
+      const confirmFeedback = document.getElementById('confirm-password-feedback');
+
+      confirmInput.addEventListener('input', function() {
+        if (this.value === '') {
+          this.setCustomValidity('Please confirm your password.');
+          confirmFeedback.textContent = 'Please confirm your password.';
+        } else if (this.value !== passwordInput.value) {
+          this.setCustomValidity('Passwords do not match.');
+          confirmFeedback.textContent = 'Passwords do not match!';
+        } else {
+          this.setCustomValidity('');
+          confirmFeedback.textContent = '';
+        }
+      });
+
+      // Also re-check confirm when password changes
+      passwordInput.addEventListener('input', function() {
+        if (confirmInput.value !== '' && this.value !== confirmInput.value) {
+          confirmInput.setCustomValidity('Passwords do not match.');
+          confirmFeedback.textContent = 'Passwords do not match!';
+        } else if (confirmInput.value !== '' && this.value === confirmInput.value) {
+          confirmInput.setCustomValidity('');
+          confirmFeedback.textContent = '';
+        }
+      });
+
+      // ---- Form submit validation ----
       document.querySelector('form').addEventListener('submit', function(e) {
         const form = e.currentTarget;
-        const password = document.getElementById('password').value;
-        const confirmInput = document.getElementById('confirm_password');
-        const feedback = document.getElementById('confirm-password-feedback');
-        
         let valid = true;
-        
+
+        // Manual confirm password check
         if (confirmInput.value === '') {
           confirmInput.setCustomValidity('Please confirm your password.');
-          feedback.textContent = 'Please confirm your password.';
+          confirmFeedback.textContent = 'Please confirm your password.';
           valid = false;
-        } else if (password !== confirmInput.value) {
+        } else if (passwordInput.value !== confirmInput.value) {
           confirmInput.setCustomValidity('Passwords do not match.');
-          feedback.textContent = 'Passwords do not match!';
+          confirmFeedback.textContent = 'Passwords do not match!';
           valid = false;
         } else {
           confirmInput.setCustomValidity('');
+          confirmFeedback.textContent = '';
         }
-        
+
         if (!form.checkValidity() || !valid) {
           e.preventDefault();
           e.stopPropagation();
         }
-        
+
         form.classList.add('was-validated');
       });
     </script>
+
+    <!-- Bootstrap JS for dismissible alerts -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
   </body>
 </html>

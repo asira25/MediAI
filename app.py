@@ -1,3 +1,5 @@
+import email
+
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify, flash
 from flask_cors import CORS
 from config import get_db_connection
@@ -266,6 +268,11 @@ def register():
         medical_history = request.form['medical_history']
         username = request.form['username']
         password = request.form['password']
+        confirm_password = request.form['confirm_password']
+
+        if password != confirm_password:
+            flash("Passwords do not match!", "danger")
+            return render_template('patient_register.html')
 
         conn = get_db_connection()
 
@@ -285,7 +292,8 @@ def register():
 
             conn.close()
 
-            return "Username or Email already exists!"
+            flash("Username or Email already exists!", "danger")
+            return render_template('patient_register.html')
 
         cursor.execute("""
 
