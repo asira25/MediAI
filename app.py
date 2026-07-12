@@ -535,6 +535,35 @@ def patient_dashboard():
 
     notifications = cursor.fetchall()
 
+    # =========================
+    # RECENT CONSULTATIONS
+    # =========================
+    cursor.execute("""
+
+        SELECT
+            c.id AS consultation_id,
+            c.diagnosis,
+            c.remarks,
+            a.date,
+            a.time,
+            d.name AS doctor_name,
+            d.clinic_name,
+            d.specialist
+        FROM consultations c
+        JOIN appointments a ON c.appointment_id = a.id
+        LEFT JOIN doctors d ON a.doctor_id = d.id
+        WHERE a.patient_id=%s
+        ORDER BY a.date DESC, a.time DESC
+        LIMIT 5
+
+    """, (
+
+        patient_id,
+
+    ))
+
+    consultations = cursor.fetchall()
+
     conn.close()
 
     return render_template(
@@ -549,7 +578,9 @@ def patient_dashboard():
 
         active_appointment=active_appointment,
 
-        notifications=notifications
+        notifications=notifications,
+
+        consultations=consultations
 
     )
 
@@ -899,7 +930,7 @@ def calculate_priority():
 
     # =========================
     # DURATION SCORE
-    # =========================
+    # ========================= 
     if duration == "Less than 24 hours":
 
         score += 15
@@ -5605,6 +5636,99 @@ def update_doctor_availability(id):
         doctor=doctor
 
     )
+
+# =========================
+# APPOINTMENT MONITORING
+# =========================
+@app.route('/appointment_monitoring')
+def appointment_monitoring():
+
+    if 'clinic_admin_id' not in session:
+        return redirect(url_for('clinic_login'))
+
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+
+    # Get filter parameters
+    filter_clinic = request.args.get('clinic', '')
+    filter_date = request.args.get('date', datetime.now().strftime('%Y-%m-%d'))
+    filter_status = request.args.get('status', '')
+    filter_doctor = request.args.get('doctor', '')
+
+    # Get all clinics for filter dropdown
+    cursor.execute("SELECT id, clinic_name FROM clinics ORDER BY clinic_name")
+    clinics = cursor.fetchall()
+
+    # Get all doctors for filter dropdown
+    cursor.execute("SELECT id, name, clinic_name FROM doctors ORDER BY name")
+    doctors = cursor.fetchall()
+
+    # Build query
+    query = """
+        SELECT
+            a.*,
+            p.full_name AS patient_name,
+            p.contact_number AS patient_contact,
+            p.email AS patient_email,
+            t.symptoms,
+            t.severity,
+            t.duration AS symptom_duration,
+            t.urgency AS triage_urgency,
+            t.ai_score,
+            t.priority_level
+        FROM appointments a
+        LEFT JOIN patients p ON a.patient_id = p.id
+        LEFT JOIN triage_results t ON a.triage_id = t.id
+        WHERE 1=1
+    """
+    params = []
+
+    if filter_clinic:
+        query += " AND a.clinic_id = %s"
+        params.append(filter_clinic)
+
+    if filter_date:
+        query += " AND a.date = %s"
+        params.append(filter_date)
+
+    if filter_status:
+        query += " AND a.status = %s"
+        params.append(filter_status)
+
+    if filter_doctor:
+        query += " AND a.doctor_id = %s"
+        params.append(filter_doctor)
+
+    query += " ORDER BY a.date DESC, a.time ASC"
+
+    cursor.execute(query, tuple(params))
+    appointments = cursor.fetchall()
+
+    # Summary stats
+    total_appointments = len(appointments)
+    completed_count = sum(1 for a in appointments if a['status'] == 'Completed')
+    waiting_count = sum(1 for a in appointments if a['status'] in ('Booked', 'Waiting'))
+    missed_cancelled = sum(1 for a in appointments if a['status'] in ('Missed', 'Cancelled'))
+
+    conn.close()
+
+    return render_template(
+        'appointment_monitoring.html',
+        clinics=clinics,
+        doctors=doctors,
+        appointments=appointments,
+        filter_clinic=filter_clinic,
+        filter_date=filter_date,
+        filter_status=filter_status,
+        filter_doctor=filter_doctor,
+        total_appointments=total_appointments,
+        completed_count=completed_count,
+        waiting_count=waiting_count,
+        missed_cancelled=missed_cancelled,
+        today=datetime.now().strftime('%Y-%m-%d'),
+        last_updated=datetime.now().strftime("%d %b %Y %I:%M %p")
+    )
+
 
 # =========================
 # LOGOUT

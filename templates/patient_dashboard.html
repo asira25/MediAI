@@ -683,13 +683,105 @@ body{
 
         </div>
 
-        <div class="empty-state">
+        {% if consultations %}
 
-            <i class="fa-solid fa-clock-rotate-left"></i>
+            {% for consult in consultations %}
 
-            <p>No consultation history yet</p>
+            <div class="appointment-card">
 
-        </div>
+                <div class="row">
+
+                    <div class="col-md-8">
+
+                        <h5 class="fw-bold">
+
+                            {{ consult.doctor_name }}
+
+                        </h5>
+
+                        <p class="mb-1">
+
+                            <strong>Specialist:</strong>
+
+                            {{ consult.specialist }}
+
+                        </p>
+
+                        <p class="mb-1">
+
+                            <strong>Clinic:</strong>
+
+                            {{ consult.clinic_name }}
+
+                        </p>
+
+                        <p class="mb-1">
+
+                            <strong>Date:</strong>
+
+                            {{ consult.date }} at {{ consult.time }}
+
+                        </p>
+
+                        <p class="mb-1">
+
+                            <strong>Diagnosis:</strong>
+
+                            {{ consult.diagnosis }}
+
+                        </p>
+
+                        {% if consult.remarks %}
+
+                        <p class="mb-0">
+
+                            <strong>Remarks:</strong>
+
+                            {{ consult.remarks }}
+
+                        </p>
+
+                        {% endif %}
+
+                    </div>
+
+                    <div class="col-md-4 text-end d-flex align-items-end justify-content-end">
+
+                        <a href="/consultation_history" class="btn btn-outline-dark btn-sm">
+
+                            View Details
+
+                        </a>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+            {% endfor %}
+
+            <div class="text-center mt-3">
+
+                <a href="/consultation_history" class="btn btn-darkblue" style="width:auto; padding:8px 30px;">
+
+                    View All History
+
+                </a>
+
+            </div>
+
+        {% else %}
+
+            <div class="empty-state">
+
+                <i class="fa-solid fa-clock-rotate-left"></i>
+
+                <p>No consultation history yet</p>
+
+            </div>
+
+        {% endif %}
 
     </div>
 
