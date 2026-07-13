@@ -1110,8 +1110,12 @@ fetchQueue();
 // =========================
 // AUTO REFRESH LIVE QUEUE
 // =========================
-// Refresh every 60 seconds to sync with APScheduler updates
-setInterval(fetchQueue, 60000);
+// Refresh every 10 seconds for faster updates
+// Syncs with APScheduler background updates
+setInterval(function() {
+    console.log('Auto-refreshing queue data...');
+    fetchQueue();
+}, 10000); // 10 seconds for testing - change to 60000 for production
 
 
 
