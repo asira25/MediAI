@@ -134,13 +134,38 @@ body{
         Patient:
         {{ now_serving.full_name }}
 
+        {% if now_serving.status == 'Waiting' %}
+
         <a
         href="{{ url_for('doctor_consultation', appointment_id=now_serving.id) }}"
         class="btn btn-dark btn-sm float-end">
 
-            View Consultation
+            <i class="fa fa-play"></i> Start Consultation
 
         </a>
+
+        {% elif now_serving.status == 'In-Consultation' %}
+
+        <a
+        href="{{ url_for('doctor_consultation', appointment_id=now_serving.id) }}"
+        class="btn btn-success btn-sm float-end">
+
+            <i class="fa fa-stethoscope"></i> Continue Consultation
+
+        </a>
+
+        {% elif now_serving.status == 'Completed' %}
+
+        <a
+        href="{{ url_for('doctor_consultation', appointment_id=now_serving.id) }}"
+        class="btn btn-outline-secondary btn-sm float-end"
+        target="_blank">
+
+            <i class="fa fa-eye"></i> View Consultation
+
+        </a>
+
+        {% endif %}
 
     </div>
 
@@ -315,27 +340,38 @@ body{
 
                         <div class="col-md-4 text-end">
 
-                            {% if appt.status == 'Completed' %}
-
-<button
-class="btn btn-secondary"
-disabled>
-
-Completed
-
-</button>
-
-{% else %}
+                            {% if appt.status == 'Waiting' %}
 
 <a
 href="{{ url_for('doctor_consultation', appointment_id=appt.id) }}"
 class="start-btn">
 
-Start Consultation
+<i class="fa fa-play"></i> Start Consultation
 
 </a>
 
-{% endif %}
+                            {% elif appt.status == 'In-Consultation' %}
+
+<a
+href="{{ url_for('doctor_consultation', appointment_id=appt.id) }}"
+class="btn btn-success">
+
+<i class="fa fa-stethoscope"></i> Continue Consultation
+
+</a>
+
+                            {% elif appt.status == 'Completed' %}
+
+<a
+href="{{ url_for('doctor_consultation', appointment_id=appt.id) }}"
+class="btn btn-outline-secondary"
+target="_blank">
+
+<i class="fa fa-eye"></i> View Consultation
+
+</a>
+
+                            {% endif %}
 
                         </div>
 
@@ -516,12 +552,13 @@ document
 // =========================
 // AUTO REFRESH DASHBOARD
 // =========================
+// Refresh every 60 seconds to sync with APScheduler updates
 
 setInterval(function(){
 
     location.reload();
 
-},10000);
+},60000);
 
 </script>
 

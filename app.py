@@ -5,10 +5,163 @@ from flask_cors import CORS
 from config import get_db_connection
 from datetime import datetime, timedelta
 import urllib.parse
+from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.triggers.interval import IntervalTrigger
+import atexit
 
 app = Flask(__name__)
 CORS(app)
 app.secret_key = "mediai_secret_key"
+
+# =========================
+# BACKGROUND SCHEDULER
+# =========================
+# APScheduler instance for automatic appointment status updates
+# Runs every 1 minute to update appointment statuses without user interaction
+scheduler = BackgroundScheduler()
+scheduler.start()
+
+# Shut down the scheduler when exiting the app
+atexit.register(lambda: scheduler.shutdown())
+
+
+# =========================
+# APPOINTMENT STATUS UPDATE FUNCTIONS
+# =========================
+
+def update_single_appointment_status(appointment_id):
+    """
+    Update the status of a single appointment based on current time.
+    
+    This function implements AUTOMATIC status transitions only:
+    - Booked → Waiting: When current time reaches appointment time
+    - Booked → Missed: If patient doesn't arrive within 15-minute grace period
+    
+    MANUAL transitions (handled by doctor actions):
+    - Waiting → In-Consultation: Doctor clicks "Start Consultation"
+    - In-Consultation → Completed: Doctor clicks "Complete Consultation"
+    
+    Args:
+        appointment_id (int): The ID of the appointment to update
+        
+    Returns:
+        str: The new status of the appointment, or None if update failed
+    """
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        
+        # Get appointment details
+        cursor.execute("""
+            SELECT * FROM appointments WHERE id=%s
+        """, (appointment_id,))
+        
+        appointment = cursor.fetchone()
+        
+        if not appointment:
+            conn.close()
+            return None
+        
+        # Skip if already in a final state or manually controlled state
+        # Only process Booked appointments automatically
+        if appointment['status'] in ['Waiting', 'In-Consultation', 'Completed', 'Cancelled', 'Missed']:
+            conn.close()
+            return appointment['status']
+        
+        # Only process Booked appointments
+        if appointment['status'] != 'Booked':
+            conn.close()
+            return appointment['status']
+        
+        current_datetime = datetime.now()
+        appointment_datetime = datetime.strptime(
+            f"{appointment['date']} {appointment['time']}",
+            "%Y-%m-%d %H:%M"
+        )
+        
+        # Calculate time thresholds
+        missed_time = appointment_datetime + timedelta(minutes=15)
+        
+        new_status = appointment['status']
+        
+        # Check for missed appointment (15-minute grace period)
+        if current_datetime > missed_time:
+            new_status = 'Missed'
+        
+        # Booked → Waiting (at appointment time)
+        elif current_datetime >= appointment_datetime:
+            new_status = 'Waiting'
+        
+        # Update database if status changed
+        if new_status != appointment['status']:
+            cursor.execute("""
+                UPDATE appointments SET status=%s WHERE id=%s
+            """, (new_status, appointment_id))
+            conn.commit()
+        
+        conn.close()
+        return new_status
+        
+    except Exception as e:
+        print(f"Error updating appointment {appointment_id}: {str(e)}")
+        return None
+
+
+def update_all_appointment_statuses():
+    """
+    Background job that updates all active appointment statuses.
+    
+    This function is called by APScheduler every 1 minute.
+    It processes all appointments that are not in a final state
+    (Completed, Cancelled, or Missed) and updates their status
+    based on the current time.
+    
+    The function includes error handling to prevent one failed
+    appointment from stopping the entire batch update.
+    """
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        
+        # Get all active appointments (not in final state)
+        cursor.execute("""
+            SELECT id FROM appointments 
+            WHERE status NOT IN ('Completed', 'Cancelled', 'Missed')
+            AND date >= CURDATE()
+        """)
+        
+        appointments = cursor.fetchall()
+        conn.close()
+        
+        # Update each appointment
+        updated_count = 0
+        failed_count = 0
+        
+        for apt in appointments:
+            result = update_single_appointment_status(apt['id'])
+            if result:
+                updated_count += 1
+            else:
+                failed_count += 1
+        
+        if updated_count > 0 or failed_count > 0:
+            print(f"[Scheduler] Appointment status update: {updated_count} updated, {failed_count} failed")
+            
+    except Exception as e:
+        print(f"[Scheduler] Error in batch update: {str(e)}")
+
+
+# Add the scheduler job - runs every 1 minute
+scheduler.add_job(
+    func=update_all_appointment_statuses,
+    trigger=IntervalTrigger(minutes=1),
+    id='update_appointment_statuses',
+    name='Update appointment statuses every minute',
+    replace_existing=True
+)
+
+print("[Scheduler] Background job scheduled: update_appointment_statuses every 1 minute")
+
 
 # =========================
 # SPECIALIST DESCRIPTIONS
@@ -2878,6 +3031,8 @@ def live_queue(appointment_id):
     # =========================
     # GET CURRENT APPOINTMENT
     # =========================
+    # Note: Status updates are now handled by the background scheduler
+    # This route only retrieves and displays queue information
     cursor.execute("""
 
         SELECT *
@@ -2903,161 +3058,6 @@ def live_queue(appointment_id):
             "error": "Appointment not found"
 
         })
-
-    # =========================
-    # AUTO UPDATE STATUS
-    # =========================
-
-    current_datetime = datetime.now()
-
-    appointment_datetime = datetime.strptime(
-
-        f"{appointment['date']} {appointment['time']}",
-
-        "%Y-%m-%d %H:%M"
-
-    )
-
-    # =========================
-    # MISSED APPOINTMENT CHECK
-    # =========================
-
-    missed_time = appointment_datetime + timedelta(minutes=15)
-
-    if (
-
-        appointment["status"] == "Booked"
-
-        and
-
-        current_datetime > missed_time
-
-    ):
-
-        cursor.execute("""
-
-            UPDATE appointments
-
-            SET status='Missed'
-
-            WHERE id=%s
-
-        """, (
-
-            appointment["id"],
-
-        ))
-
-        conn.commit()
-
-        appointment["status"] = "Missed"
-
-    # =========================
-    # AUTO STATUS TRANSITIONS
-    # (Skipped if appointment is already Missed)
-    # =========================
-
-    if appointment["status"] != "Missed":
-
-        cursor.execute("""
-
-            SELECT consultation_duration
-
-            FROM doctors
-
-            WHERE id=%s
-
-        """, (
-
-            appointment['doctor_id'],
-
-        ))
-
-        doctor = cursor.fetchone()
-
-        consultation_duration = (
-
-            doctor['consultation_duration']
-
-            if doctor and doctor['consultation_duration']
-
-            else 15
-
-        )
-
-        waiting_time = appointment_datetime
-
-        consultation_start = appointment_datetime + timedelta(minutes=15)
-
-        consultation_end = consultation_start + timedelta(
-
-            minutes=consultation_duration
-
-        )
-
-        new_status = appointment['status']
-
-        # -------------------------
-        # Booked -> Waiting
-        # -------------------------
-
-        if (
-
-            current_datetime >= waiting_time
-
-            and current_datetime < consultation_start
-
-        ):
-
-            new_status = "Waiting"
-
-        # -------------------------
-        # Waiting -> In-Consultation
-        # -------------------------
-
-        elif (
-
-            current_datetime >= consultation_start
-
-            and current_datetime < consultation_end
-
-        ):
-
-            new_status = "In-Consultation"
-
-        # -------------------------
-        # Consultation Finished
-        # -------------------------
-
-        elif current_datetime >= consultation_end:
-
-            new_status = "Completed"
-
-        # -------------------------
-        # Update Database
-        # -------------------------
-
-        if new_status != appointment["status"]:
-
-            cursor.execute("""
-
-                UPDATE appointments
-
-                SET status=%s
-
-                WHERE id=%s
-
-            """, (
-
-                new_status,
-
-                appointment["id"]
-
-            ))
-
-            conn.commit()
-
-            appointment["status"] = new_status
 
     # =========================
     # CHECK HIGH + URGENT
