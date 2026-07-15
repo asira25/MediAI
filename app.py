@@ -29,6 +29,51 @@ atexit.register(lambda: scheduler.shutdown())
 # APPOINTMENT STATUS UPDATE FUNCTIONS
 # =========================
 
+def get_effective_status(appointment):
+    """
+    Calculate the effective status of an appointment based on current time.
+    This ensures status changes happen EXACTLY at the appointment time,
+    not just when the scheduler happens to run.
+    
+    Status transitions:
+    - Booked → Waiting: Exactly at appointment time
+    - Booked → Missed: 15 minutes after appointment time
+    - Waiting → Missed: 45 minutes after appointment time (no-show)
+    - In-Consultation, Completed, Cancelled, Missed: Preserved as-is
+    
+    Args:
+        appointment (dict): Appointment record from database
+        
+    Returns:
+        str: The effective status (may differ from DB status if time-based transition is due)
+    """
+    db_status = appointment['status']
+    
+    # Final states and manually controlled states are never overridden
+    if db_status in ['Completed', 'Cancelled', 'Missed', 'In-Consultation']:
+        return db_status
+    
+    current_datetime = datetime.now()
+    appointment_datetime = datetime.strptime(
+        f"{appointment['date']} {appointment['time']}",
+        "%Y-%m-%d %H:%M"
+    )
+    
+    if db_status == 'Booked':
+        missed_time = appointment_datetime + timedelta(minutes=15)
+        if current_datetime > missed_time:
+            return 'Missed'
+        elif current_datetime >= appointment_datetime:
+            return 'Waiting'
+    
+    elif db_status == 'Waiting':
+        no_show_time = appointment_datetime + timedelta(minutes=45)
+        if current_datetime > no_show_time:
+            return 'Missed'
+    
+    return db_status
+
+
 def update_single_appointment_status(appointment_id):
     """
     Update the status of a single appointment based on current time.
@@ -64,41 +109,8 @@ def update_single_appointment_status(appointment_id):
             conn.close()
             return None
         
-        # Skip appointments already in final states
-        if appointment['status'] in ['Completed', 'Cancelled', 'Missed']:
-            conn.close()
-            return appointment['status']
-        
-        # Skip In-Consultation (manually controlled)
-        if appointment['status'] == 'In-Consultation':
-            conn.close()
-            return appointment['status']
-        
-        current_datetime = datetime.now()
-        appointment_datetime = datetime.strptime(
-            f"{appointment['date']} {appointment['time']}",
-            "%Y-%m-%d %H:%M"
-        )
-        
-        new_status = appointment['status']
-        
-        if appointment['status'] == 'Booked':
-            # Calculate time thresholds for Booked appointments
-            missed_time = appointment_datetime + timedelta(minutes=15)
-            
-            # Check for missed appointment (15-minute grace period)
-            if current_datetime > missed_time:
-                new_status = 'Missed'
-            # Booked → Waiting (at appointment time)
-            elif current_datetime >= appointment_datetime:
-                new_status = 'Waiting'
-        
-        elif appointment['status'] == 'Waiting':
-            # Check if waiting patient never showed up
-            # 45 minutes total from appointment time (15min grace + 30min extra wait)
-            no_show_time = appointment_datetime + timedelta(minutes=45)
-            if current_datetime > no_show_time:
-                new_status = 'Missed'
+        # Calculate effective status based on current time
+        new_status = get_effective_status(appointment)
         
         # Update database if status changed
         if new_status != appointment['status']:
@@ -159,16 +171,16 @@ def update_all_appointment_statuses():
         print(f"[Scheduler] Error in batch update: {str(e)}")
 
 
-# Add the scheduler job - runs every 1 minute
+# Add the scheduler job - runs every 15 seconds
 scheduler.add_job(
     func=update_all_appointment_statuses,
-    trigger=IntervalTrigger(minutes=1),
+    trigger=IntervalTrigger(seconds=15),
     id='update_appointment_statuses',
-    name='Update appointment statuses every minute',
+    name='Update appointment statuses every 15 seconds',
     replace_existing=True
 )
 
-print("[Scheduler] Background job scheduled: update_appointment_statuses every 1 minute")
+print("[Scheduler] Background job scheduled: update_appointment_statuses every 15 seconds")
 
 
 # =========================
@@ -645,6 +657,11 @@ def patient_dashboard():
     ))
 
     appointments = cursor.fetchall()
+    
+    # Apply time-based status override
+    for apt in appointments:
+        if apt['status'] not in ['Completed', 'Cancelled', 'Missed', 'In-Consultation']:
+            apt['status'] = get_effective_status(apt)
 
     # =========================
     # ACTIVE APPOINTMENT
@@ -3039,8 +3056,8 @@ def live_queue(appointment_id):
     # =========================
     # GET CURRENT APPOINTMENT
     # =========================
-    # Note: Status updates are now handled by the background scheduler
-    # This route only retrieves and displays queue information
+    # Status is calculated dynamically based on current time
+    # so it changes EXACTLY at appointment time, not just when scheduler runs
     cursor.execute("""
 
         SELECT *
@@ -3056,6 +3073,11 @@ def live_queue(appointment_id):
     ))
 
     appointment = cursor.fetchone()
+    
+    # Calculate effective status based on current time
+    if appointment:
+        effective_status = get_effective_status(appointment)
+        appointment['status'] = effective_status
 
     if not appointment:
 
@@ -5711,6 +5733,11 @@ def appointment_monitoring():
 
     cursor.execute(query, tuple(params))
     appointments = cursor.fetchall()
+    
+    # Apply time-based status override
+    for apt in appointments:
+        if apt['status'] not in ['Completed', 'Cancelled', 'Missed', 'In-Consultation']:
+            apt['status'] = get_effective_status(apt)
 
     # Summary stats
     total_appointments = len(appointments)
