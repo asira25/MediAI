@@ -33,9 +33,11 @@ def update_single_appointment_status(appointment_id):
     """
     Update the status of a single appointment based on current time.
     
-    This function implements AUTOMATIC status transitions only:
+    This function implements AUTOMATIC status transitions:
     - Booked → Waiting: When current time reaches appointment time
     - Booked → Missed: If patient doesn't arrive within 15-minute grace period
+    - Waiting → Missed: If patient doesn't arrive within 45-minute no-show window
+      (15min grace + 30min extra waiting time)
     
     MANUAL transitions (handled by doctor actions):
     - Waiting → In-Consultation: Doctor clicks "Start Consultation"
@@ -62,14 +64,13 @@ def update_single_appointment_status(appointment_id):
             conn.close()
             return None
         
-        # Skip if already in a final state or manually controlled state
-        # Only process Booked appointments automatically
-        if appointment['status'] in ['Waiting', 'In-Consultation', 'Completed', 'Cancelled', 'Missed']:
+        # Skip appointments already in final states
+        if appointment['status'] in ['Completed', 'Cancelled', 'Missed']:
             conn.close()
             return appointment['status']
         
-        # Only process Booked appointments
-        if appointment['status'] != 'Booked':
+        # Skip In-Consultation (manually controlled)
+        if appointment['status'] == 'In-Consultation':
             conn.close()
             return appointment['status']
         
@@ -79,18 +80,25 @@ def update_single_appointment_status(appointment_id):
             "%Y-%m-%d %H:%M"
         )
         
-        # Calculate time thresholds
-        missed_time = appointment_datetime + timedelta(minutes=15)
-        
         new_status = appointment['status']
         
-        # Check for missed appointment (15-minute grace period)
-        if current_datetime > missed_time:
-            new_status = 'Missed'
+        if appointment['status'] == 'Booked':
+            # Calculate time thresholds for Booked appointments
+            missed_time = appointment_datetime + timedelta(minutes=15)
+            
+            # Check for missed appointment (15-minute grace period)
+            if current_datetime > missed_time:
+                new_status = 'Missed'
+            # Booked → Waiting (at appointment time)
+            elif current_datetime >= appointment_datetime:
+                new_status = 'Waiting'
         
-        # Booked → Waiting (at appointment time)
-        elif current_datetime >= appointment_datetime:
-            new_status = 'Waiting'
+        elif appointment['status'] == 'Waiting':
+            # Check if waiting patient never showed up
+            # 45 minutes total from appointment time (15min grace + 30min extra wait)
+            no_show_time = appointment_datetime + timedelta(minutes=45)
+            if current_datetime > no_show_time:
+                new_status = 'Missed'
         
         # Update database if status changed
         if new_status != appointment['status']:
@@ -5726,6 +5734,204 @@ def appointment_monitoring():
         waiting_count=waiting_count,
         missed_cancelled=missed_cancelled,
         today=datetime.now().strftime('%Y-%m-%d'),
+        last_updated=datetime.now().strftime("%d %b %Y %I:%M %p")
+    )
+
+
+# =========================
+# QUEUE MONITORING (Clinic Side)
+# =========================
+@app.route('/queue_monitoring')
+def queue_monitoring():
+
+    if 'clinic_admin_id' not in session:
+        return redirect(url_for('clinic_login'))
+
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+
+    # =========================
+    # GET ALL CLINICS
+    # =========================
+    cursor.execute("""
+        SELECT *
+        FROM clinics
+        ORDER BY clinic_name
+    """)
+    clinics = cursor.fetchall()
+
+    # =========================
+    # CURRENT TIME
+    # =========================
+    current_time = timedelta(
+        hours=datetime.now().hour,
+        minutes=datetime.now().minute,
+        seconds=datetime.now().second
+    )
+
+    # =========================
+    # GLOBAL STATS
+    # =========================
+    total_in_queue = 0
+    total_waiting = 0
+    total_in_consultation = 0
+    total_booked = 0
+    total_completed = 0
+    total_doctors_active = 0
+    doctor_queues = {}
+    all_doctors = []
+
+    for clinic in clinics:
+        # Clinic display status
+        if clinic['status'] == "Temporary Closed":
+            clinic['display_status'] = "Temporary Closed"
+        elif clinic['status'] == "Permanently Closed":
+            clinic['display_status'] = "Permanently Closed"
+        elif (
+            clinic['opening_time']
+            and clinic['closing_time']
+            and clinic['opening_time'] <= current_time <= clinic['closing_time']
+        ):
+            clinic['display_status'] = "Open"
+        else:
+            clinic['display_status'] = "Closed"
+
+        # =========================
+        # GET DOCTORS FOR THIS CLINIC
+        # =========================
+        cursor.execute("""
+            SELECT *
+            FROM doctors
+            WHERE clinic_id=%s
+            AND status='Active'
+            ORDER BY name
+        """, (clinic['id'],))
+        doctors = cursor.fetchall()
+        clinic['doctors'] = doctors
+        all_doctors.extend(doctors)
+
+        for doctor in doctors:
+            total_doctors_active += 1
+
+            # =========================
+            # GET TODAY'S ACTIVE APPOINTMENTS FOR THIS DOCTOR
+            # In-Consultation spans across days (overnight), so include regardless of date
+            # Booked and Waiting should only be today's appointments
+            # =========================
+            cursor.execute("""
+                SELECT
+                    a.*,
+                    p.full_name AS patient_name,
+                    p.contact_number AS patient_contact
+                FROM appointments a
+                LEFT JOIN patients p ON a.patient_id = p.id
+                WHERE a.doctor_id=%s
+                AND (
+                    (a.date=CURDATE() AND a.status IN ('Booked', 'Waiting'))
+                    OR
+                    (a.status='In-Consultation')
+                )
+                ORDER BY
+                    CASE
+                        WHEN a.priority='HIGH' AND LOWER(a.urgency)='very urgent' THEN 1
+                        WHEN a.priority='HIGH' AND LOWER(a.urgency)='urgent' THEN 2
+                        ELSE 3
+                    END,
+                    a.time ASC
+            """, (doctor['id'],))
+            appointments = cursor.fetchall()
+
+            if appointments:
+                doctor_queues[doctor['id']] = appointments
+                total_in_queue += len(appointments)
+
+                for apt in appointments:
+                    if apt['status'] == 'Waiting':
+                        total_waiting += 1
+                    elif apt['status'] == 'In-Consultation':
+                        total_in_consultation += 1
+                    elif apt['status'] == 'Booked':
+                        total_booked += 1
+
+        # =========================
+        # COUNT TODAY'S COMPLETED APPOINTMENTS FOR THIS CLINIC
+        # =========================
+        cursor.execute("""
+            SELECT COUNT(*) AS total
+            FROM appointments
+            WHERE clinic=%s
+            AND date=CURDATE()
+            AND status='Completed'
+        """, (clinic['clinic_name'],))
+        completed_count = cursor.fetchone()['total']
+        total_completed += completed_count
+
+    # =========================
+    # CLINIC QUEUE SUMMARY
+    # =========================
+    clinic_queue_summary = []
+    for clinic in clinics:
+        cursor.execute("""
+            SELECT COUNT(*) AS total
+            FROM appointments
+            WHERE clinic=%s
+            AND date=CURDATE()
+            AND status IN ('Booked', 'Waiting', 'In-Consultation')
+        """, (clinic['clinic_name'],))
+        queue_total = cursor.fetchone()['total']
+
+        cursor.execute("""
+            SELECT COUNT(*) AS total
+            FROM appointments
+            WHERE clinic=%s
+            AND date=CURDATE()
+            AND status='Waiting'
+        """, (clinic['clinic_name'],))
+        waiting_total = cursor.fetchone()['total']
+
+        cursor.execute("""
+            SELECT COUNT(*) AS total
+            FROM appointments
+            WHERE clinic=%s
+            AND date=CURDATE()
+            AND status='In-Consultation'
+        """, (clinic['clinic_name'],))
+        consultation_total = cursor.fetchone()['total']
+
+        cursor.execute("""
+            SELECT COUNT(*) AS total
+            FROM appointments
+            WHERE clinic=%s
+            AND date=CURDATE()
+            AND status='Completed'
+        """, (clinic['clinic_name'],))
+        completed_total = cursor.fetchone()['total']
+
+        clinic_queue_summary.append({
+            'id': clinic['id'],
+            'clinic_name': clinic['clinic_name'],
+            'display_status': clinic['display_status'],
+            'queue_total': queue_total,
+            'waiting_total': waiting_total,
+            'consultation_total': consultation_total,
+            'completed_total': completed_total,
+            'doctor_count': len(clinic.get('doctors', []))
+        })
+
+    conn.close()
+
+    return render_template(
+        'queue_monitoring.html',
+        clinics=clinics,
+        all_doctors=all_doctors,
+        doctor_queues=doctor_queues,
+        clinic_queue_summary=clinic_queue_summary,
+        total_in_queue=total_in_queue,
+        total_waiting=total_waiting,
+        total_in_consultation=total_in_consultation,
+        total_booked=total_booked,
+        total_completed=total_completed,
+        total_doctors_active=total_doctors_active,
         last_updated=datetime.now().strftime("%d %b %Y %I:%M %p")
     )
 

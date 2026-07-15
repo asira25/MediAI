@@ -1,0 +1,744 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Queue Monitoring - MEDiAI</title>
+    
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+    <style>
+        body{
+            background:#f0f4f8;
+            font-family:Arial, sans-serif;
+        }
+
+        .header{
+            background:#1f3c88;
+            color:white;
+            padding:20px 30px;
+            display:flex;
+            justify-content:space-between;
+            align-items:center;
+        }
+
+        .header h2{
+            margin:0;
+        }
+
+        .header a{
+            color:white;
+            text-decoration:none;
+        }
+
+        .stats-row{
+            display:grid;
+            grid-template-columns:repeat(5,1fr);
+            gap:12px;
+            margin:20px 30px;
+        }
+
+        .stat-card{
+            background:white;
+            border-radius:15px;
+            padding:18px;
+            text-align:center;
+            box-shadow:0 2px 8px rgba(0,0,0,0.08);
+            transition:transform 0.2s;
+        }
+
+        .stat-card:hover{
+            transform:translateY(-2px);
+        }
+
+        .stat-number{
+            font-size:30px;
+            font-weight:bold;
+            color:#1f3c88;
+        }
+
+        .stat-mini{
+            font-size:22px;
+            font-weight:bold;
+        }
+
+        .stat-label{
+            color:#666;
+            font-size:13px;
+            margin-top:3px;
+        }
+
+        .progress-section{
+            margin:0 30px 20px 30px;
+            background:white;
+            border-radius:15px;
+            padding:20px;
+            box-shadow:0 2px 8px rgba(0,0,0,0.08);
+        }
+
+        .progress-header{
+            display:flex;
+            justify-content:space-between;
+            align-items:center;
+            margin-bottom:12px;
+        }
+
+        .clinic-tabs{
+            display:flex;
+            gap:8px;
+            flex-wrap:wrap;
+            margin:0 30px 15px 30px;
+        }
+
+        .clinic-tab{
+            background:white;
+            border:2px solid #e0e0e0;
+            border-radius:12px;
+            padding:12px 18px;
+            cursor:pointer;
+            transition:all 0.2s;
+            flex:1;
+            min-width:140px;
+            text-align:center;
+        }
+
+        .clinic-tab:hover{
+            border-color:#1f3c88;
+            background:#f0f4ff;
+        }
+
+        .clinic-tab.active{
+            border-color:#1f3c88;
+            background:#e8edf8;
+        }
+
+        .clinic-tab .name{
+            font-weight:bold;
+            font-size:14px;
+        }
+
+        .clinic-tab .counts{
+            font-size:12px;
+            color:#666;
+            margin-top:4px;
+        }
+
+        .clinic-tab .badge-status{
+            font-size:10px;
+            padding:2px 8px;
+            border-radius:10px;
+        }
+
+        .doctor-grid{
+            display:grid;
+            grid-template-columns:repeat(auto-fill,minmax(480px,1fr));
+            gap:20px;
+            margin:0 30px 30px 30px;
+        }
+
+        .doctor-card{
+            background:white;
+            border-radius:15px;
+            overflow:hidden;
+            box-shadow:0 2px 8px rgba(0,0,0,0.08);
+        }
+
+        .doctor-header{
+            background:#1f3c88;
+            color:white;
+            padding:14px 20px;
+            display:flex;
+            justify-content:space-between;
+            align-items:center;
+        }
+
+        .doctor-header h5{
+            margin:0;
+        }
+
+        .doctor-header small{
+            opacity:0.9;
+        }
+
+        .now-serving{
+            background:#e8f5e9;
+            border-left:4px solid #4caf50;
+            padding:12px 15px;
+            margin:10px;
+            border-radius:8px;
+            display:flex;
+            justify-content:space-between;
+            align-items:center;
+        }
+
+        .now-serving .patient-name{
+            font-weight:bold;
+            font-size:16px;
+        }
+
+        .patient-list{
+            padding:0 15px 15px 15px;
+        }
+
+        .patient-item{
+            display:flex;
+            justify-content:space-between;
+            align-items:center;
+            padding:10px 12px;
+            border-bottom:1px solid #f0f0f0;
+            transition:background 0.2s;
+        }
+
+        .patient-item:hover{
+            background:#f8f9ff;
+        }
+
+        .patient-item:last-child{
+            border-bottom:none;
+        }
+
+        .queue-number{
+            font-weight:bold;
+            font-size:16px;
+            color:#1f3c88;
+            min-width:55px;
+        }
+
+        .patient-info{
+            flex:1;
+            padding:0 10px;
+        }
+
+        .patient-info .name{
+            font-weight:600;
+        }
+
+        .patient-info .time{
+            font-size:12px;
+            color:#888;
+        }
+
+        .patient-info .contact{
+            font-size:11px;
+            color:#aaa;
+        }
+
+        .status-badge{
+            font-size:11px;
+            padding:4px 10px;
+            border-radius:20px;
+            font-weight:600;
+        }
+
+        .badge-booked{
+            background:#e3f2fd;
+            color:#1565c0;
+        }
+
+        .badge-waiting{
+            background:#fff3e0;
+            color:#e65100;
+        }
+
+        .badge-in-consultation{
+            background:#e8f5e9;
+            color:#2e7d32;
+        }
+
+        .priority-high{
+            background:#ffebee;
+            color:#c62828;
+        }
+
+        .priority-medium{
+            background:#fff8e1;
+            color:#f57f17;
+        }
+
+        .priority-low{
+            background:#e8f5e9;
+            color:#2e7d32;
+        }
+
+        .empty-state{
+            text-align:center;
+            padding:60px 20px;
+            color:#888;
+        }
+
+        .empty-state i{
+            font-size:60px;
+            margin-bottom:15px;
+            color:#ccc;
+        }
+
+        .live-indicator{
+            display:inline-block;
+            width:10px;
+            height:10px;
+            background:#4caf50;
+            border-radius:50%;
+            animation:pulse 1.5s infinite;
+            margin-right:5px;
+        }
+
+        @keyframes pulse{
+            0%{opacity:1;}
+            50%{opacity:0.3;}
+            100%{opacity:1;}
+        }
+
+        .last-updated{
+            text-align:center;
+            padding:15px;
+            color:#888;
+            font-size:13px;
+        }
+
+        .wait-time{
+            background:#f3f4f6;
+            padding:2px 8px;
+            border-radius:12px;
+            font-size:12px;
+            color:#555;
+        }
+
+        .clinic-badge{
+            background:rgba(255,255,255,0.15);
+            padding:3px 10px;
+            border-radius:12px;
+            font-size:11px;
+        }
+
+        .no-patients{
+            text-align:center;
+            padding:12px;
+            color:#aaa;
+            font-size:13px;
+        }
+
+        .appointment-progress{
+            margin-top:8px;
+            display:flex;
+            align-items:center;
+            gap:10px;
+        }
+
+        .progress-bar-custom{
+            flex:1;
+            height:8px;
+            background:#e9ecef;
+            border-radius:10px;
+            overflow:hidden;
+        }
+
+        .progress-fill-custom{
+            height:100%;
+            border-radius:10px;
+            transition:width 0.5s;
+        }
+
+        .filter-row{
+            margin:0 30px 20px 30px;
+            display:flex;
+            gap:10px;
+            flex-wrap:wrap;
+            align-items:center;
+        }
+
+        .filter-row select, .filter-row input{
+            padding:8px 12px;
+            border:1px solid #ddd;
+            border-radius:10px;
+            font-size:13px;
+        }
+
+        @media(max-width:768px){
+            .stats-row{
+                grid-template-columns:repeat(2,1fr);
+            }
+            .doctor-grid{
+                grid-template-columns:1fr;
+            }
+            .clinic-tabs{
+                flex-direction:column;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <div>
+        <h2><i class="fa fa-list-ol"></i> Queue Monitoring</h2>
+        <small>Real-time queue overview & appointment progress across all clinics</small>
+    </div>
+    <div>
+        <a href="/clinic_dashboard" class="btn btn-outline-light btn-sm me-2">
+            <i class="fa fa-arrow-left"></i> Dashboard
+        </a>
+        <a href="/logout" class="btn btn-outline-light btn-sm">
+            <i class="fa fa-sign-out-alt"></i> Logout
+        </a>
+    </div>
+</div>
+
+<!-- GLOBAL STATISTICS -->
+<div class="stats-row">
+    <div class="stat-card">
+        <i class="fa fa-users fa-2x text-primary mb-2"></i>
+        <div class="stat-number">{{ total_in_queue }}</div>
+        <div class="stat-label">Total in Queue</div>
+    </div>
+    <div class="stat-card">
+        <i class="fa fa-hourglass-half fa-2x text-warning mb-2"></i>
+        <div class="stat-number">{{ total_waiting }}</div>
+        <div class="stat-label">Waiting</div>
+    </div>
+    <div class="stat-card">
+        <i class="fa fa-stethoscope fa-2x text-success mb-2"></i>
+        <div class="stat-number">{{ total_in_consultation }}</div>
+        <div class="stat-label">In Consultation</div>
+    </div>
+    <div class="stat-card">
+        <i class="fa fa-calendar-check fa-2x text-info mb-2"></i>
+        <div class="stat-number">{{ total_booked }}</div>
+        <div class="stat-label">Booked (Upcoming)</div>
+    </div>
+    <div class="stat-card">
+        <i class="fa fa-user-md fa-2x text-secondary mb-2"></i>
+        <div class="stat-number">{{ total_doctors_active }}</div>
+        <div class="stat-label">Active Doctors</div>
+    </div>
+</div>
+
+<!-- OVERALL PROGRESS SECTION -->
+<div class="progress-section">
+    <div class="progress-header">
+        <h5 class="mb-0"><i class="fa fa-chart-line text-primary"></i> Today's Overall Appointment Progress</h5>
+        <span class="text-muted small">{{ last_updated }}</span>
+    </div>
+    {% set in_progress = total_waiting + total_in_consultation %}
+    {% set total_today = total_in_queue + total_completed %}
+    {% if total_today > 0 %}
+        {% set progress_pct = ((total_in_consultation + total_waiting) / total_today * 100)|round %}
+        {% set completed_pct = (total_completed / total_today * 100)|round %}
+    {% else %}
+        {% set progress_pct = 0 %}
+        {% set completed_pct = 0 %}
+    {% endif %}
+    <div class="d-flex align-items-center gap-3">
+        <div class="progress-bar-custom">
+            <div class="progress-fill-custom" style="width:{{ progress_pct }}%;background:#ff9800;"></div>
+        </div>
+        <span class="badge bg-warning text-dark">{{ progress_pct }}% Active</span>
+        <span class="badge bg-success">{{ completed_pct }}% Completed</span>
+    </div>
+    <div class="d-flex justify-content-between mt-2 small text-muted">
+        <span><i class="fa fa-circle text-warning"></i> Active Appointments: {{ in_progress }}</span>
+        <span><i class="fa fa-circle text-success"></i> Completed Today: {{ total_completed }}</span>
+        <span><i class="fa fa-circle text-primary"></i> Total Today: {{ total_today }}</span>
+    </div>
+</div>
+
+<!-- CLINIC QUEUE SUMMARY -->
+<div class="progress-section">
+    <h5 class="mb-3"><i class="fa fa-hospital text-primary"></i> Clinic Queue Summary</h5>
+    <div class="table-responsive">
+        <table class="table table-hover align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th>Clinic</th>
+                    <th>Status</th>
+                    <th>Doctors</th>
+                    <th>In Queue</th>
+                    <th>Waiting</th>
+                    <th>In Consultation</th>
+                    <th>Completed</th>
+                    <th>Progress</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for clinic in clinic_queue_summary %}
+                <tr>
+                    <td><strong>{{ clinic.clinic_name }}</strong></td>
+                    <td>
+                        {% if clinic.display_status == 'Open' %}
+                            <span class="badge bg-success">Open</span>
+                        {% elif clinic.display_status == 'Closed' %}
+                            <span class="badge bg-danger">Closed</span>
+                        {% elif clinic.display_status == 'Temporary Closed' %}
+                            <span class="badge bg-warning text-dark">Temp Closed</span>
+                        {% elif clinic.display_status == 'Permanently Closed' %}
+                            <span class="badge bg-dark">Perm Closed</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ clinic.doctor_count }}</td>
+                    <td><strong>{{ clinic.queue_total }}</strong></td>
+                    <td>
+                        {% if clinic.waiting_total > 0 %}
+                            <span class="badge bg-warning text-dark">{{ clinic.waiting_total }}</span>
+                        {% else %}
+                            {{ clinic.waiting_total }}
+                        {% endif %}
+                    </td>
+                    <td>{{ clinic.consultation_total }}</td>
+                    <td>{{ clinic.completed_total }}</td>
+                    <td>
+                        {% set clinic_total = clinic.queue_total + clinic.completed_total %}
+                        {% if clinic_total > 0 %}
+                            {% set clinic_progress = (clinic.completed_total / clinic_total * 100)|round %}
+                            <div class="d-flex align-items-center gap-2">
+                                <div class="progress-bar-custom" style="height:6px;width:80px;">
+                                    <div class="progress-fill-custom" style="width:{{ clinic_progress }}%;background:#4caf50;"></div>
+                                </div>
+                                <small>{{ clinic_progress }}%</small>
+                            </div>
+                        {% else %}
+                            <small class="text-muted">N/A</small>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- FILTER / SEARCH -->
+<div class="filter-row">
+    <span class="fw-bold me-2"><i class="fa fa-filter"></i> Filter:</span>
+    <select id="clinicFilter" onchange="filterQueue()">
+        <option value="all">All Clinics</option>
+        {% for clinic in clinics %}
+            <option value="clinic-{{ clinic.id }}">{{ clinic.clinic_name }}</option>
+        {% endfor %}
+    </select>
+    <select id="doctorFilter" onchange="filterQueue()">
+        <option value="all">All Doctors</option>
+        {% for doctor in all_doctors %}
+            <option value="doctor-{{ doctor.id }}">Dr. {{ doctor.name }}</option>
+        {% endfor %}
+    </select>
+</div>
+
+<!-- DOCTOR QUEUES -->
+{% if doctor_queues %}
+<div class="doctor-grid" id="doctorGrid">
+    {% for doctor_id, appointments in doctor_queues.items() %}
+    {% set doctor = all_doctors|selectattr("id", "equalto", doctor_id)|first %}
+    {% if doctor %}
+    {% set clinic = clinics|selectattr("id", "equalto", doctor.clinic_id)|first %}
+    <div class="doctor-card clinic-{{ doctor.clinic_id }} doctor-{{ doctor_id }}">
+        <div class="doctor-header">
+            <div>
+                <h5><i class="fa fa-user-md"></i> Dr. {{ doctor.name }}</h5>
+                <small>{{ doctor.specialist }} 
+                    {% if clinic %}
+                    <span class="clinic-badge">{{ clinic.clinic_name }}</span>
+                    {% endif %}
+                </small>
+            </div>
+            <div class="text-end">
+                {% set waiting_count = appointments|selectattr("status", "equalto", "Waiting")|list|length %}
+                {% set booked_count = appointments|selectattr("status", "equalto", "Booked")|list|length %}
+                <span class="badge bg-light text-dark d-block mb-1">{{ appointments|length }} patients</span>
+                {% if waiting_count > 0 %}
+                    <span class="badge bg-warning text-dark">{{ waiting_count }} waiting</span>
+                {% endif %}
+            </div>
+        </div>
+
+        {% set in_consultation = appointments|selectattr("status", "equalto", "In-Consultation")|list %}
+        {% set waiting_list = appointments|rejectattr("status", "equalto", "In-Consultation")|list %}
+
+        <!-- Now Serving -->
+        {% if in_consultation %}
+        {% set current = in_consultation[0] %}
+        <div class="now-serving">
+            <div>
+                <small>Now Serving</small>
+                <div class="patient-name">
+                    <i class="fa fa-user"></i> {{ current.patient_name }}
+                </div>
+                <small>Queue #{{ current.queue_number }} | {{ current.time }}</small>
+            </div>
+            <span class="status-badge badge-in-consultation">
+                <i class="fa fa-circle-check"></i> In Consultation
+            </span>
+        </div>
+        {% else %}
+        <div class="now-serving" style="background:#fff8e1;border-left-color:#ff9800;">
+            <div>
+                <small>Waiting for patient</small>
+                <div class="patient-name" style="color:#ff9800;">
+                    <i class="fa fa-clock"></i> No active consultation
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Waiting Queue -->
+        <div class="patient-list">
+            {% if waiting_list %}
+            {% for apt in waiting_list %}
+            <div class="patient-item">
+                <div class="queue-number">#{{ apt.queue_number }}</div>
+                <div class="patient-info">
+                    <div class="name">{{ apt.patient_name }}</div>
+                    <div class="time">
+                        <i class="fa fa-clock"></i> {{ apt.time }}
+                        {% if apt.wait_time %}
+                        <span class="wait-time ms-2">
+                            <i class="fa fa-hourglass"></i> {{ apt.wait_time }}
+                        </span>
+                        {% endif %}
+                    </div>
+                    {% if apt.patient_contact %}
+                    <div class="contact">
+                        <i class="fa fa-phone"></i> {{ apt.patient_contact }}
+                    </div>
+                    {% endif %}
+                </div>
+                <div class="text-end">
+                    {% if apt.priority == 'HIGH' %}
+                    <span class="status-badge priority-high">HIGH</span>
+                    {% elif apt.priority == 'MEDIUM' %}
+                    <span class="status-badge priority-medium">MEDIUM</span>
+                    {% else %}
+                    <span class="status-badge priority-low">LOW</span>
+                    {% endif %}
+                    
+                    {% if apt.status == 'Booked' %}
+                    <span class="status-badge badge-booked ms-1">Booked</span>
+                    {% elif apt.status == 'Waiting' %}
+                    <span class="status-badge badge-waiting ms-1">Waiting</span>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+            {% else %}
+            <div class="no-patients">
+                <i class="fa fa-check-circle text-success me-1"></i> No waiting patients. All clear!
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Appointment Progress Bar for this Doctor -->
+        {% set doc_total = appointments|length %}
+        {% set doc_completed = appointments|selectattr("status", "equalto", "Completed")|list|length %}
+        {% if doc_total > 0 %}
+        <div class="px-3 pb-3">
+            <div class="d-flex justify-content-between small text-muted mb-1">
+                <span>Queue Progress</span>
+                <span>{{ doc_completed }}/{{ doc_total }} completed</span>
+            </div>
+            <div class="progress-bar-custom">
+                {% set doc_completed_count = appointments|selectattr("status", "equalto", "Completed")|list|length %}
+                {% set doc_waiting_count = appointments|selectattr("status", "equalto", "Waiting")|list|length %}
+                {% set doc_consult_count = appointments|selectattr("status", "equalto", "In-Consultation")|list|length %}
+                {% set doc_booked_count = appointments|selectattr("status", "equalto", "Booked")|list|length %}
+                <div class="d-flex" style="height:100%;border-radius:10px;overflow:hidden;">
+                    {% if doc_completed_count > 0 %}
+                    <div style="width:{{ (doc_completed_count/doc_total*100)|round }}%;background:#4caf50;height:8px;" title="Completed: {{ doc_completed_count }}"></div>
+                    {% endif %}
+                    {% if doc_consult_count > 0 %}
+                    <div style="width:{{ (doc_consult_count/doc_total*100)|round }}%;background:#2196f3;height:8px;" title="In Consultation: {{ doc_consult_count }}"></div>
+                    {% endif %}
+                    {% if doc_waiting_count > 0 %}
+                    <div style="width:{{ (doc_waiting_count/doc_total*100)|round }}%;background:#ff9800;height:8px;" title="Waiting: {{ doc_waiting_count }}"></div>
+                    {% endif %}
+                    {% if doc_booked_count > 0 %}
+                    <div style="width:{{ (doc_booked_count/doc_total*100)|round }}%;background:#9e9e9e;height:8px;" title="Booked: {{ doc_booked_count }}"></div>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="d-flex gap-3 mt-1 small text-muted">
+                <span><span style="color:#4caf50;">●</span> {{ doc_completed_count }} Done</span>
+                <span><span style="color:#2196f3;">●</span> {{ doc_consult_count }} Active</span>
+                <span><span style="color:#ff9800;">●</span> {{ doc_waiting_count }} Waiting</span>
+                <span><span style="color:#9e9e9e;">●</span> {{ doc_booked_count }} Booked</span>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+    {% endfor %}
+</div>
+{% else %}
+<div class="empty-state">
+    <i class="fa fa-inbox"></i>
+    <h4>No Active Queues</h4>
+    <p>There are no active queues at the moment. Once patients start arriving, their queue status will appear here.</p>
+</div>
+{% endif %}
+
+<div class="last-updated">
+    <span class="live-indicator"></span>
+    <strong>Live</strong> - Last updated: {{ last_updated }}
+    <span id="countdown" class="ms-2 text-muted"></span>
+    <button class="btn btn-sm btn-outline-primary ms-3" onclick="location.reload()">
+        <i class="fa fa-rotate"></i> Refresh Now
+    </button>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+<script>
+// =========================
+// FILTER QUEUE BY CLINIC / DOCTOR
+// =========================
+function filterQueue() {
+    var clinicVal = document.getElementById('clinicFilter').value;
+    var doctorVal = document.getElementById('doctorFilter').value;
+    var cards = document.querySelectorAll('.doctor-card');
+    
+    cards.forEach(function(card) {
+        var show = true;
+        
+        if (clinicVal !== 'all') {
+            if (!card.classList.contains(clinicVal)) {
+                show = false;
+            }
+        }
+        
+        if (doctorVal !== 'all') {
+            if (!card.classList.contains(doctorVal)) {
+                show = false;
+            }
+        }
+        
+        card.style.display = show ? '' : 'none';
+    });
+}
+
+// =========================
+// AUTO REFRESH COUNTDOWN
+// =========================
+var secondsLeft = 15;
+
+function updateCountdown() {
+    document.getElementById('countdown').innerHTML = 
+        'Auto-refresh in ' + secondsLeft + 's';
+    secondsLeft--;
+    if (secondsLeft < 0) {
+        secondsLeft = 15;
+    }
+}
+
+setInterval(updateCountdown, 1000);
+updateCountdown();
+
+setInterval(function() {
+    console.log('Refreshing queue monitoring data...');
+    location.reload();
+}, 15000);
+</script>
+
+</body>
+</html>
