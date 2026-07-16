@@ -1,6 +1,6 @@
 import email
 
-from flask import Flask, render_template, request, redirect, url_for, session, jsonify, flash
+from flask import Flask, render_template, request, redirect, url_for, session, jsonify, flash, send_file
 from flask_cors import CORS
 from config import get_db_connection
 from datetime import datetime, timedelta
@@ -8,6 +8,16 @@ import urllib.parse
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 import atexit
+from io import BytesIO
+from reportlab.lib import colors
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.units import mm
+from reportlab.platypus import (
+    SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle,
+    HRFlowable
+)
+from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_RIGHT
 
 app = Flask(__name__)
 CORS(app)
@@ -4179,6 +4189,475 @@ def consultation_history():
 
         histories=histories
 
+    )
+
+# =========================
+# DOWNLOAD CONSULTATION PDF
+# =========================
+@app.route('/download_consultation_pdf/<int:consultation_id>')
+def download_consultation_pdf(consultation_id):
+
+    if 'patient_id' not in session:
+        return redirect(url_for('patient_login'))
+
+    patient_id = session['patient_id']
+
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+
+    # =========================
+    # FETCH CONSULTATION DATA
+    # =========================
+    cursor.execute("""
+
+        SELECT
+            c.id AS consultation_id,
+            c.diagnosis,
+            c.remarks,
+            a.date,
+            a.time,
+            a.doctor_id,
+            d.name AS doctor_name,
+            d.specialist,
+            d.clinic_name,
+            d.clinic_id,
+            p.full_name AS patient_full_name,
+            p.age,
+            p.gender,
+            p.contact_number,
+            p.email,
+            p.address,
+            t.symptoms,
+            t.severity,
+            t.duration AS symptom_duration,
+            t.urgency,
+            t.ai_score,
+            t.priority_level
+
+        FROM consultations c
+
+        JOIN appointments a
+        ON c.appointment_id = a.id
+
+        JOIN doctors d
+        ON a.doctor_id = d.id
+
+        JOIN patients p
+        ON a.patient_id = p.id
+
+        LEFT JOIN triage_results t
+        ON a.triage_id = t.id
+
+        WHERE c.id=%s
+          AND a.patient_id=%s
+          AND a.status='Completed'
+
+    """, (consultation_id, patient_id))
+
+    consultation = cursor.fetchone()
+
+    if not consultation:
+        conn.close()
+        return "Consultation not found or access denied.", 403
+
+    # =========================
+    # FETCH CLINIC INFO
+    # =========================
+    cursor.execute("""
+
+        SELECT address, contact_number
+        FROM clinics
+        WHERE id=%s
+
+    """, (consultation['clinic_id'],))
+
+    clinic_info = cursor.fetchone()
+
+    # =========================
+    # FETCH PRESCRIPTIONS
+    # =========================
+    cursor.execute("""
+
+        SELECT medicine_name, dosage, frequency, duration
+        FROM prescriptions
+        WHERE consultation_id=%s
+
+    """, (consultation_id,))
+
+    prescriptions = cursor.fetchall()
+
+    conn.close()
+
+    # =========================
+    # HELPER: Safe value
+    # =========================
+    def safe(val):
+        if val is None or str(val).strip() == '':
+            return 'Not Available'
+        return str(val)
+
+    def safe_na(val):
+        if val is None or str(val).strip() == '':
+            return 'Not Available'
+        return str(val)
+
+    # =========================
+    # BUILD PDF - IMPROVED LAYOUT
+    # =========================
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=A4,
+        topMargin=18 * mm,
+        bottomMargin=18 * mm,
+        leftMargin=18 * mm,
+        rightMargin=18 * mm
+    )
+
+    styles = getSampleStyleSheet()
+
+    # -- MedicaI colour palette --
+    DARK_BLUE = colors.HexColor('#1a3a5c')
+    MED_BLUE  = colors.HexColor('#2563eb')
+    LIGHT_BG  = colors.HexColor('#f0f4f8')
+    LGRAY     = colors.HexColor('#6b7280')
+    DARK_TEXT  = colors.HexColor('#111827')
+    BORDER_C   = colors.HexColor('#d1d5db')
+    WHITE      = colors.white
+
+    # Custom styles
+    title_style = ParagraphStyle(
+        'CustomTitle', parent=styles['Title'],
+        fontSize=22, leading=26, spaceAfter=1*mm,
+        textColor=DARK_BLUE, alignment=TA_CENTER
+    )
+
+    tagline_style = ParagraphStyle(
+        'Tagline', parent=styles['Normal'],
+        fontSize=9, leading=12, spaceAfter=3*mm,
+        textColor=LGRAY, alignment=TA_CENTER
+    )
+
+    report_title_style = ParagraphStyle(
+        'ReportTitle', parent=styles['Heading1'],
+        fontSize=16, leading=20, spaceAfter=2.5*mm,
+        textColor=MED_BLUE, alignment=TA_CENTER
+    )
+
+    gen_info_style = ParagraphStyle(
+        'GenInfo', parent=styles['Normal'],
+        fontSize=8.5, leading=11, spaceAfter=1*mm,
+        textColor=LGRAY, alignment=TA_CENTER
+    )
+
+    section_style = ParagraphStyle(
+        'SectionHeader', parent=styles['Heading2'],
+        fontSize=12.5, leading=15, spaceBefore=5*mm, spaceAfter=2.5*mm,
+        textColor=DARK_BLUE, borderWidth=0, borderPadding=0
+    )
+
+    label_style = ParagraphStyle(
+        'Label', parent=styles['Normal'],
+        fontSize=8.5, leading=11, textColor=LGRAY,
+        spaceBefore=1*mm, spaceAfter=0.5*mm
+    )
+
+    value_style = ParagraphStyle(
+        'Value', parent=styles['Normal'],
+        fontSize=10, leading=13.5, textColor=DARK_TEXT,
+        spaceBefore=0, spaceAfter=1.5*mm
+    )
+
+    box_text_style = ParagraphStyle(
+        'BoxText', parent=styles['Normal'],
+        fontSize=10, leading=14, textColor=DARK_TEXT,
+        spaceBefore=1*mm, spaceAfter=1*mm,
+        leftIndent=3*mm, rightIndent=3*mm
+    )
+
+    na_style = ParagraphStyle(
+        'NA', parent=styles['Normal'],
+        fontSize=10, leading=13, textColor=colors.HexColor('#9ca3af'),
+        spaceBefore=0, spaceAfter=2*mm
+    )
+
+    footer_style = ParagraphStyle(
+        'Footer', parent=styles['Normal'],
+        fontSize=8, leading=10, textColor=LGRAY,
+        alignment=TA_CENTER, spaceBefore=8*mm
+    )
+
+    story = []
+
+    # =========================
+    # HEADER
+    # =========================
+    story.append(Paragraph("MEDiAI", title_style))
+    story.append(Paragraph(
+        "AI-Powered Healthcare Appointment & Queue Management System",
+        tagline_style
+    ))
+    story.append(Paragraph("Consultation Summary", report_title_style))
+
+    # Consultation & appointment reference
+    story.append(Paragraph(
+        f"Consultation ID: {consultation_id}",
+        gen_info_style
+    ))
+
+    gen_datetime = datetime.now().strftime("%d %B %Y at %I:%M %p")
+    story.append(Paragraph(
+        f"Report generated: {gen_datetime}",
+        gen_info_style
+    ))
+
+    story.append(HRFlowable(
+        width="100%", thickness=1.2, color=MED_BLUE,
+        spaceBefore=3*mm, spaceAfter=5*mm
+    ))
+
+    # =========================
+    # PATIENT INFORMATION
+    # =========================
+    story.append(Paragraph("PATIENT INFORMATION", section_style))
+
+    patient_data = [
+        [Paragraph("<b>Full Name</b>", label_style),
+         Paragraph(safe(consultation['patient_full_name']), value_style)],
+        [Paragraph("<b>Age</b>", label_style),
+         Paragraph(safe(consultation['age']), value_style)],
+        [Paragraph("<b>Gender</b>", label_style),
+         Paragraph(safe(consultation['gender']), value_style)],
+        [Paragraph("<b>Contact Number</b>", label_style),
+         Paragraph(safe(consultation['contact_number']), value_style)],
+        [Paragraph("<b>Email</b>", label_style),
+         Paragraph(safe(consultation['email']), value_style)],
+        [Paragraph("<b>Address</b>", label_style),
+         Paragraph(safe(consultation['address']), value_style)],
+    ]
+
+    patient_table = Table(patient_data, colWidths=[42*mm, 122*mm])
+    patient_table.setStyle(TableStyle([
+        ('VALIGN', (0,0), (-1,-1), 'TOP'),
+        ('TOPPADDING', (0,0), (-1,-1), 0.8*mm),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 0.8*mm),
+        ('LEFTPADDING', (0,0), (-1,-1), 2*mm),
+        ('LINEBELOW', (0,0), (-1,0), 0.5, LIGHT_BG),
+        ('LINEBELOW', (0,1), (-1,1), 0.5, LIGHT_BG),
+        ('LINEBELOW', (0,2), (-1,2), 0.5, LIGHT_BG),
+        ('LINEBELOW', (0,3), (-1,3), 0.5, LIGHT_BG),
+        ('LINEBELOW', (0,4), (-1,4), 0.5, LIGHT_BG),
+    ]))
+    story.append(patient_table)
+
+    # =========================
+    # CLINIC & DOCTOR INFORMATION
+    # =========================
+    story.append(Paragraph("CLINIC & DOCTOR INFORMATION", section_style))
+
+    clinic_addr = safe_na(clinic_info['address']) if clinic_info else 'Not Available'
+    clinic_contact = safe_na(clinic_info['contact_number']) if clinic_info else 'Not Available'
+
+    clinic_doctor_data = [
+        [Paragraph("<b>Clinic Name</b>", label_style),
+         Paragraph(safe(consultation['clinic_name']), value_style)],
+        [Paragraph("<b>Clinic Address</b>", label_style),
+         Paragraph(clinic_addr, value_style)],
+        [Paragraph("<b>Clinic Contact</b>", label_style),
+         Paragraph(clinic_contact, value_style)],
+        [Paragraph("<b>Doctor Name</b>", label_style),
+         Paragraph(safe(consultation['doctor_name']), value_style)],
+        [Paragraph("<b>Specialty</b>", label_style),
+         Paragraph(safe(consultation['specialist']), value_style)],
+    ]
+
+    clinic_table = Table(clinic_doctor_data, colWidths=[42*mm, 122*mm])
+    clinic_table.setStyle(TableStyle([
+        ('VALIGN', (0,0), (-1,-1), 'TOP'),
+        ('TOPPADDING', (0,0), (-1,-1), 0.8*mm),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 0.8*mm),
+        ('LEFTPADDING', (0,0), (-1,-1), 2*mm),
+        ('LINEBELOW', (0,0), (-1,0), 0.5, LIGHT_BG),
+        ('LINEBELOW', (0,1), (-1,1), 0.5, LIGHT_BG),
+        ('LINEBELOW', (0,2), (-1,2), 0.5, LIGHT_BG),
+        ('LINEBELOW', (0,3), (-1,3), 0.5, LIGHT_BG),
+    ]))
+    story.append(clinic_table)
+
+    # =========================
+    # APPOINTMENT DETAILS
+    # =========================
+    story.append(Paragraph("APPOINTMENT DETAILS", section_style))
+
+    apt_date = consultation['date']
+    if hasattr(apt_date, 'strftime'):
+        apt_date = apt_date.strftime('%d %B %Y')
+    apt_time = consultation['time']
+    if hasattr(apt_time, 'strftime'):
+        apt_time = apt_time.strftime('%I:%M %p')
+
+    appointment_data = [
+        [Paragraph("<b>Appointment Date</b>", label_style),
+         Paragraph(str(apt_date), value_style)],
+        [Paragraph("<b>Appointment Time</b>", label_style),
+         Paragraph(str(apt_time), value_style)],
+    ]
+
+    apt_table = Table(appointment_data, colWidths=[42*mm, 122*mm])
+    apt_table.setStyle(TableStyle([
+        ('VALIGN', (0,0), (-1,-1), 'TOP'),
+        ('TOPPADDING', (0,0), (-1,-1), 0.8*mm),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 0.8*mm),
+        ('LEFTPADDING', (0,0), (-1,-1), 2*mm),
+        ('LINEBELOW', (0,0), (-1,0), 0.5, LIGHT_BG),
+    ]))
+    story.append(apt_table)
+
+    # =========================
+    # MEDICAL DETAILS
+    # =========================
+    story.append(Paragraph("MEDICAL DETAILS", section_style))
+
+    # Symptoms
+    story.append(Paragraph("<b>Symptoms Reported</b>", label_style))
+    symptoms_val = safe_na(consultation['symptoms'])
+    story.append(Paragraph(symptoms_val, box_text_style))
+    story.append(Spacer(1, 2*mm))
+
+    # Diagnosis in shaded box
+    story.append(Paragraph("<b>Diagnosis</b>", label_style))
+    diag_val = safe(consultation['diagnosis'])
+    diag_box_data = [[Paragraph(diag_val, box_text_style)]]
+    diag_table = Table(diag_box_data, colWidths=[164*mm])
+    diag_table.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,-1), colors.HexColor('#eaf2ff')),
+        ('BOX', (0,0), (-1,-1), 0.75, colors.HexColor('#cfe0ff')),
+        ('TOPPADDING', (0,0), (-1,-1), 2*mm),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 2*mm),
+        ('LEFTPADDING', (0,0), (-1,-1), 2*mm),
+        ('RIGHTPADDING',(0,0), (-1,-1), 2*mm),
+    ]))
+    story.append(diag_table)
+    story.append(Spacer(1, 2*mm))
+
+    # Doctor's Remarks in shaded box
+    story.append(Paragraph("<b>Doctor's Remarks</b>", label_style))
+    remarks_val = safe_na(consultation['remarks'])
+    remarks_box_data = [[Paragraph(remarks_val, box_text_style)]]
+    remarks_table = Table(remarks_box_data, colWidths=[164*mm])
+    remarks_table.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,-1), colors.HexColor('#f8fafc')),
+        ('BOX', (0,0), (-1,-1), 0.75, colors.HexColor('#e2e8f0')),
+        ('TOPPADDING', (0,0), (-1,-1), 2*mm),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 2*mm),
+        ('LEFTPADDING', (0,0), (-1,-1), 2*mm),
+        ('RIGHTPADDING',(0,0), (-1,-1), 2*mm),
+    ]))
+    story.append(remarks_table)
+
+    # =========================
+    # PRESCRIPTIONS TABLE
+    # =========================
+    story.append(Spacer(1, 3*mm))
+    story.append(Paragraph("PRESCRIPTIONS", section_style))
+
+    if prescriptions and len(prescriptions) > 0:
+        presc_header_style = ParagraphStyle(
+            'PrescHeader', parent=label_style,
+            textColor=WHITE, fontSize=9, leading=12
+        )
+        presc_val_style = ParagraphStyle(
+            'PrescVal', parent=value_style,
+            fontSize=9.5, leading=12.5
+        )
+
+        presc_data = [
+            [Paragraph("<b>Medicine</b>", presc_header_style),
+             Paragraph("<b>Dosage</b>", presc_header_style),
+             Paragraph("<b>Frequency</b>", presc_header_style),
+             Paragraph("<b>Duration</b>", presc_header_style)]
+        ]
+        for med in prescriptions:
+            presc_data.append([
+                Paragraph(safe(med['medicine_name']), presc_val_style),
+                Paragraph(safe(med['dosage']), presc_val_style),
+                Paragraph(safe(med['frequency']), presc_val_style),
+                Paragraph(safe(med['duration']), presc_val_style),
+            ])
+
+        presc_table = Table(presc_data, colWidths=[45*mm, 40*mm, 40*mm, 39*mm])
+        presc_table.setStyle(TableStyle([
+            ('BACKGROUND', (0,0), (-1,0), DARK_BLUE),
+            ('TEXTCOLOR', (0,0), (-1,0), WHITE),
+            ('GRID', (0,0), (-1,-1), 0.5, BORDER_C),
+            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+            ('TOPPADDING', (0,0), (-1,-1), 2*mm),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 2*mm),
+            ('LEFTPADDING', (0,0), (-1,-1), 2*mm),
+            ('RIGHTPADDING',(0,0), (-1,-1), 2*mm),
+            ('ROWBACKGROUNDS', (0,1), (-1,-1), [WHITE, colors.HexColor('#f9fafb')]),
+        ]))
+        story.append(presc_table)
+    else:
+        story.append(Paragraph("Not Available", na_style))
+
+    # =========================
+    # AI TRIAGE INFORMATION
+    # =========================
+    story.append(Paragraph("AI TRIAGE INFORMATION", section_style))
+
+    triage_data = [
+        [Paragraph("<b>Priority Level</b>", label_style),
+         Paragraph(safe_na(consultation.get('priority_level', 'Not Available')), value_style)],
+        [Paragraph("<b>Urgency</b>", label_style),
+         Paragraph(safe_na(consultation['urgency']), value_style)],
+        [Paragraph("<b>Severity</b>", label_style),
+         Paragraph(safe_na(consultation['severity']), value_style)],
+        [Paragraph("<b>Symptom Duration</b>", label_style),
+         Paragraph(safe_na(consultation['symptom_duration']), value_style)],
+        [Paragraph("<b>AI Score</b>", label_style),
+         Paragraph(safe_na(consultation['ai_score']), value_style)],
+    ]
+
+    triage_table = Table(triage_data, colWidths=[42*mm, 122*mm])
+    triage_table.setStyle(TableStyle([
+        ('VALIGN', (0,0), (-1,-1), 'TOP'),
+        ('TOPPADDING', (0,0), (-1,-1), 0.8*mm),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 0.8*mm),
+        ('LEFTPADDING', (0,0), (-1,-1), 2*mm),
+        ('LINEBELOW', (0,0), (-1,0), 0.5, LIGHT_BG),
+        ('LINEBELOW', (0,1), (-1,1), 0.5, LIGHT_BG),
+        ('LINEBELOW', (0,2), (-1,2), 0.5, LIGHT_BG),
+        ('LINEBELOW', (0,3), (-1,3), 0.5, LIGHT_BG),
+    ]))
+    story.append(triage_table)
+
+    # =========================
+    # FOOTER
+    # =========================
+    story.append(HRFlowable(
+        width="100%", thickness=0.5, color=BORDER_C,
+        spaceBefore=6*mm, spaceAfter=2*mm
+    ))
+    story.append(Paragraph(
+        "This consultation summary is generated by MediAI for future medical reference.",
+        footer_style
+    ))
+
+    # =========================
+    # BUILD & RETURN
+    # =========================
+    doc.build(story)
+    pdf_data = buffer.getvalue()
+    buffer.close()
+
+    filename = f"Consultation_Summary_{consultation_id}.pdf"
+
+    return send_file(
+        BytesIO(pdf_data),
+        mimetype='application/pdf',
+        as_attachment=True,
+        download_name=filename
     )
 
 # =========================
