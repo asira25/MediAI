@@ -3776,6 +3776,98 @@ def api_doctor_dashboard_data():
 
 
 # =========================
+# DOCTOR CONSULTATION HISTORY
+# =========================
+@app.route('/doctor_consultation_history')
+def doctor_consultation_history():
+
+    if 'doctor_id' not in session:
+        return redirect(url_for('doctor_login'))
+
+    doctor_id = session['doctor_id']
+
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+
+    # Get all completed consultations for this doctor (no date filter - shows all history)
+    cursor.execute("""
+
+        SELECT
+            c.id AS consultation_id,
+            c.diagnosis,
+            c.remarks,
+            a.date,
+            a.time,
+            p.full_name AS patient_name,
+            p.contact_number AS patient_contact,
+            p.email AS patient_email,
+            t.symptoms,
+            t.severity,
+            t.duration,
+            t.urgency,
+            t.ai_score,
+            t.priority_level
+
+        FROM consultations c
+
+        JOIN appointments a
+        ON c.appointment_id = a.id
+
+        JOIN patients p
+        ON a.patient_id = p.id
+
+        LEFT JOIN triage_results t
+        ON a.triage_id = t.id
+
+        WHERE a.doctor_id=%s
+          AND a.status='Completed'
+          AND c.id = (
+              SELECT MAX(c2.id)
+              FROM consultations c2
+              WHERE c2.appointment_id = a.id
+          )
+
+        ORDER BY a.date DESC,
+                 a.time DESC
+
+    """, (doctor_id,))
+
+    histories = cursor.fetchall()
+
+    # Get prescriptions for each consultation
+    for history in histories:
+
+        cursor.execute("""
+
+            SELECT
+                medicine_name,
+                dosage,
+                frequency,
+                duration
+
+            FROM prescriptions
+
+            WHERE consultation_id=%s
+
+        """, (
+
+            history['consultation_id'],
+
+        ))
+
+        history['prescriptions'] = cursor.fetchall()
+
+    conn.close()
+
+    return render_template(
+
+        'doctor_consultation_history.html',
+
+        histories=histories
+
+    )
+
+# =========================
 # DOCTOR CONSULTATION
 # =========================
 @app.route('/doctor_consultation/<int:appointment_id>')
