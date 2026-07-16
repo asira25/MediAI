@@ -668,108 +668,128 @@ body{
     </div>
 
 
-    <!-- RECENT CONSULTATIONS -->
+    <!-- RECENT CONSULTATION -->
     <div class="card-box">
 
         <div class="section-title">
 
-            Recent Consultations
+            Recent Consultation
 
         </div>
 
         <div class="section-subtitle">
 
-            Your latest medical records
+            Your latest medical record summary
 
         </div>
 
-        {% if consultations %}
+        {% if recent_consultation %}
 
-            {% for consult in consultations %}
+        <div class="appointment-card">
 
-            <div class="appointment-card">
+            <div class="row">
 
-                <div class="row">
+                <div class="col-md-8">
 
-                    <div class="col-md-8">
+                    <h5 class="fw-bold">
 
-                        <h5 class="fw-bold">
+                        Dr. {{ recent_consultation.doctor_name }}
 
-                            {{ consult.doctor_name }}
+                    </h5>
 
-                        </h5>
+                    <p class="mb-1">
 
-                        <p class="mb-1">
+                        <strong>Specialist:</strong>
 
-                            <strong>Specialist:</strong>
+                        {{ recent_consultation.specialist }}
 
-                            {{ consult.specialist }}
+                    </p>
 
-                        </p>
+                    <p class="mb-1">
 
-                        <p class="mb-1">
+                        <strong>Clinic:</strong>
 
-                            <strong>Clinic:</strong>
+                        {{ recent_consultation.clinic_name }}
 
-                            {{ consult.clinic_name }}
+                    </p>
 
-                        </p>
+                    <p class="mb-1">
 
-                        <p class="mb-1">
+                        <strong>Date:</strong>
 
-                            <strong>Date:</strong>
+                        {{ recent_consultation.date }} at {{ recent_consultation.time }}
 
-                            {{ consult.date }} at {{ consult.time }}
+                    </p>
 
-                        </p>
+                    <p class="mb-1">
 
-                        <p class="mb-1">
+                        <strong>Diagnosis:</strong>
 
-                            <strong>Diagnosis:</strong>
+                        {{ recent_consultation.diagnosis }}
 
-                            {{ consult.diagnosis }}
+                    </p>
 
-                        </p>
+                    {% if recent_consultation.remarks %}
 
-                        {% if consult.remarks %}
+                    <p class="mb-1">
 
-                        <p class="mb-0">
+                        <strong>Remarks:</strong>
 
-                            <strong>Remarks:</strong>
+                        {{ recent_consultation.remarks }}
 
-                            {{ consult.remarks }}
+                    </p>
 
-                        </p>
+                    {% endif %}
+
+                    {% if prescription_summary %}
+
+                    <div class="mt-3 p-3 bg-light rounded">
+
+                        <strong>Prescription Summary:</strong>
+
+                        <ul class="mb-0 mt-2">
+
+                            {% for med in prescription_summary %}
+
+                            <li>
+
+                                {{ med.medicine_name }} - {{ med.dosage }} ({{ med.frequency }}, {{ med.duration }})
+
+                            </li>
+
+                            {% endfor %}
+
+                        </ul>
+
+                        {% if prescription_summary|length >= 3 %}
+
+                        <small class="text-muted">
+
+                            ...and more
+
+                        </small>
 
                         {% endif %}
 
                     </div>
 
-                    <div class="col-md-4 text-end d-flex align-items-end justify-content-end">
-
-                        <a href="/consultation_history" class="btn btn-outline-dark btn-sm">
-
-                            View Details
-
-                        </a>
-
-                    </div>
+                    {% endif %}
 
                 </div>
 
             </div>
 
-            {% endfor %}
+        </div>
 
-            <div class="text-center mt-3">
+        <div class="text-center mt-3">
 
-                <a href="/consultation_history" class="btn btn-darkblue" style="width:auto; padding:8px 30px;">
+            <a href="/consultation_history" class="btn btn-darkblue" style="width:auto; padding:8px 30px;">
 
-                    View All History
+                View Consultation History
 
-                </a>
+            </a>
 
-            </div>
+        </div>
 
         {% else %}
 

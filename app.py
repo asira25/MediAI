@@ -714,7 +714,7 @@ def patient_dashboard():
     notifications = cursor.fetchall()
 
     # =========================
-    # RECENT CONSULTATIONS
+    # RECENT CONSULTATION (MOST RECENT ONLY)
     # =========================
     cursor.execute("""
 
@@ -738,7 +738,7 @@ def patient_dashboard():
               WHERE c2.appointment_id = a.id
           )
         ORDER BY a.date DESC, a.time DESC
-        LIMIT 5
+        LIMIT 1
 
     """, (
 
@@ -746,7 +746,29 @@ def patient_dashboard():
 
     ))
 
-    consultations = cursor.fetchall()
+    recent_consultation = cursor.fetchone()
+    
+    # Get prescription summary for the most recent consultation
+    prescription_summary = None
+    if recent_consultation:
+        cursor.execute("""
+
+            SELECT 
+                medicine_name,
+                dosage,
+                frequency,
+                duration
+            FROM prescriptions
+            WHERE consultation_id=%s
+            LIMIT 3
+
+        """, (
+
+            recent_consultation['consultation_id'],
+
+        ))
+
+        prescription_summary = cursor.fetchall()
 
     conn.close()
 
@@ -764,7 +786,9 @@ def patient_dashboard():
 
         notifications=notifications,
 
-        consultations=consultations
+        recent_consultation=recent_consultation,
+
+        prescription_summary=prescription_summary
 
     )
 
