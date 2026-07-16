@@ -61,8 +61,8 @@ body{
 .card-box{
     background:white;
     border-radius:15px;
-    padding:25px;
-    margin-bottom:25px;
+    padding:20px;
+    margin-bottom:20px;
     box-shadow:0 2px 8px rgba(0,0,0,0.05);
 }
 
@@ -74,20 +74,67 @@ body{
 .section-subtitle{
     color:#777;
     font-size:14px;
-    margin-bottom:25px;
+    margin-bottom:15px;
 }
 
 .action-card{
     background:white;
     border-radius:15px;
     padding:20px;
-    height:100%;
     box-shadow:0 2px 8px rgba(0,0,0,0.05);
 }
 
 .action-icon{
     font-size:28px;
-    margin-bottom:10px;
+    margin-bottom:8px;
+}
+
+.recent-consultation-card{
+    border:1px solid #eee;
+    border-radius:12px;
+    padding:15px;
+    background:#fafbfc;
+}
+
+.consultation-header{
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-start;
+    margin-bottom:12px;
+}
+
+.consultation-info{
+    flex:1;
+}
+
+.consultation-info h5{
+    margin-bottom:8px;
+    font-size:1.1rem;
+}
+
+.consultation-details{
+    font-size:0.9rem;
+}
+
+.consultation-details p{
+    margin-bottom:4px;
+}
+
+.prescription-summary{
+    margin-top:12px;
+    padding:10px;
+    background:#f0f4f8;
+    border-radius:8px;
+    font-size:0.85rem;
+}
+
+.prescription-summary ul{
+    margin-bottom:0;
+    padding-left:18px;
+}
+
+.prescription-summary li{
+    margin-bottom:2px;
 }
 
 .btn-darkblue{
@@ -116,19 +163,19 @@ body{
 .appointment-card{
     border:1px solid #eee;
     border-radius:12px;
-    padding:20px;
-    margin-top:15px;
+    padding:18px;
+    margin-top:12px;
 }
 
 .empty-state{
     text-align:center;
-    padding:50px 20px;
+    padding:30px 20px;
     color:#888;
 }
 
 .empty-state i{
-    font-size:45px;
-    margin-bottom:15px;
+    font-size:40px;
+    margin-bottom:12px;
     color:#b0b0b0;
 }
 
@@ -142,9 +189,9 @@ body{
 .notification-box{
     border-left:4px solid #2563eb;
     background:#f8fafc;
-    padding:15px;
+    padding:12px;
     border-radius:10px;
-    margin-bottom:15px;
+    margin-bottom:10px;
 }
 
 </style>
@@ -685,11 +732,11 @@ body{
 
         {% if recent_consultation %}
 
-        <div class="appointment-card">
+        <div class="recent-consultation-card">
 
-            <div class="row">
+            <div class="consultation-header">
 
-                <div class="col-md-8">
+                <div class="consultation-info">
 
                     <h5 class="fw-bold">
 
@@ -697,87 +744,81 @@ body{
 
                     </h5>
 
-                    <p class="mb-1">
+                    <div class="consultation-details">
 
-                        <strong>Specialist:</strong>
+                        <p class="mb-1">
 
-                        {{ recent_consultation.specialist }}
+                            <strong>Specialist:</strong> {{ recent_consultation.specialist }}
 
-                    </p>
+                        </p>
 
-                    <p class="mb-1">
+                        <p class="mb-1">
 
-                        <strong>Clinic:</strong>
+                            <strong>Clinic:</strong> {{ recent_consultation.clinic_name }}
 
-                        {{ recent_consultation.clinic_name }}
+                        </p>
 
-                    </p>
+                        <p class="mb-1">
 
-                    <p class="mb-1">
+                            <strong>Date:</strong> {{ recent_consultation.date }} at {{ recent_consultation.time }}
 
-                        <strong>Date:</strong>
+                        </p>
 
-                        {{ recent_consultation.date }} at {{ recent_consultation.time }}
+                        <p class="mb-1">
 
-                    </p>
+                            <strong>Diagnosis:</strong> {{ recent_consultation.diagnosis }}
 
-                    <p class="mb-1">
+                        </p>
 
-                        <strong>Diagnosis:</strong>
+                        {% if recent_consultation.remarks %}
 
-                        {{ recent_consultation.diagnosis }}
+                        <p class="mb-0">
 
-                    </p>
+                            <strong>Remarks:</strong> {{ recent_consultation.remarks }}
 
-                    {% if recent_consultation.remarks %}
-
-                    <p class="mb-1">
-
-                        <strong>Remarks:</strong>
-
-                        {{ recent_consultation.remarks }}
-
-                    </p>
-
-                    {% endif %}
-
-                    {% if prescription_summary %}
-
-                    <div class="mt-3 p-3 bg-light rounded">
-
-                        <strong>Prescription Summary:</strong>
-
-                        <ul class="mb-0 mt-2">
-
-                            {% for med in prescription_summary %}
-
-                            <li>
-
-                                {{ med.medicine_name }} - {{ med.dosage }} ({{ med.frequency }}, {{ med.duration }})
-
-                            </li>
-
-                            {% endfor %}
-
-                        </ul>
-
-                        {% if prescription_summary|length >= 3 %}
-
-                        <small class="text-muted">
-
-                            ...and more
-
-                        </small>
+                        </p>
 
                         {% endif %}
 
                     </div>
 
-                    {% endif %}
-
                 </div>
 
             </div>
+
+            {% if prescription_summary %}
+
+            <div class="prescription-summary">
+
+                <strong>Prescription Summary:</strong>
+
+                <ul class="mb-0 mt-2">
+
+                    {% for med in prescription_summary %}
+
+                    <li>
+
+                        {{ med.medicine_name }} - {{ med.dosage }} ({{ med.frequency }}, {{ med.duration }})
+
+                    </li>
+
+                    {% endfor %}
+
+                </ul>
+
+                {% if prescription_summary|length >= 3 %}
+
+                <small class="text-muted">
+
+                    ...and more
+
+                </small>
+
+                {% endif %}
+
+            </div>
+
+            {% endif %}
 
         </div>
 

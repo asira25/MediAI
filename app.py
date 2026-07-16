@@ -3609,7 +3609,7 @@ def doctor_dashboard():
 
         appt_date = str(appt['date'])
 
-        if appt['status'] == 'Completed':
+        if appt['status'] == 'Completed' and appt_date == current_date:
 
             completed.append(appt)
 
@@ -3724,7 +3724,7 @@ def api_doctor_dashboard_data():
 
     for appt in appointments:
         appt_date = str(appt['date'])
-        if appt['status'] == 'Completed':
+        if appt['status'] == 'Completed' and appt_date == current_date:
             completed_list.append(appt)
         elif appt['status'] == 'Missed':
             missed_list.append(appt)
