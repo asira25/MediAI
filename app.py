@@ -731,6 +731,12 @@ def patient_dashboard():
         JOIN appointments a ON c.appointment_id = a.id
         LEFT JOIN doctors d ON a.doctor_id = d.id
         WHERE a.patient_id=%s
+          AND a.status='Completed'
+          AND c.id = (
+              SELECT MAX(c2.id)
+              FROM consultations c2
+              WHERE c2.appointment_id = a.id
+          )
         ORDER BY a.date DESC, a.time DESC
         LIMIT 5
 
@@ -3560,6 +3566,11 @@ def doctor_dashboard():
 
     appointments = cursor.fetchall()
 
+    # Apply the effective status for time-based transitions before splitting
+    # the appointments into tabs and counting statistics.
+    for appt in appointments:
+        appt['status'] = get_effective_status(appt)
+
     # =========================
     # SPLIT INTO TABS
     # =========================
@@ -3625,6 +3636,120 @@ def doctor_dashboard():
         upcoming_count=upcoming_count
 
     )
+
+# =========================
+# DOCTOR DASHBOARD API (AJAX)
+# =========================
+@app.route('/api/doctor_dashboard_data')
+def api_doctor_dashboard_data():
+
+    if 'doctor_id' not in session:
+        return jsonify({'error': 'Not authenticated'}), 401
+
+    doctor_id = session['doctor_id']
+
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+
+    # Doctor info
+    cursor.execute(
+        "SELECT * FROM doctors WHERE id=%s",
+        (doctor_id,)
+    )
+    doctor = cursor.fetchone()
+
+    # Now serving
+    cursor.execute("""
+        SELECT a.*, p.full_name, t.symptoms
+        FROM appointments a
+        LEFT JOIN patients p ON a.patient_id = p.id
+        LEFT JOIN triage_results t ON a.triage_id = t.id
+        WHERE a.doctor_id=%s AND a.status='In-Consultation'
+        LIMIT 1
+    """, (doctor_id,))
+    now_serving = cursor.fetchone()
+
+    # Appointments
+    cursor.execute("""
+        SELECT a.*, p.full_name, t.symptoms
+        FROM appointments a
+        LEFT JOIN patients p ON a.patient_id = p.id
+        LEFT JOIN triage_results t ON a.triage_id = t.id
+        WHERE a.doctor_id=%s AND a.status != 'Cancelled'
+        ORDER BY
+            CASE
+                WHEN a.priority='HIGH' AND LOWER(a.urgency)='very urgent' THEN 1
+                WHEN a.priority='HIGH' AND LOWER(a.urgency)='urgent' THEN 2
+                ELSE 3
+            END,
+            a.time ASC
+    """, (doctor_id,))
+    appointments = cursor.fetchall()
+
+    # Calculate the current status on every poll so the UI does not have to
+    # wait for the background scheduler's next run.
+    for appt in appointments:
+        appt['status'] = get_effective_status(appt)
+
+    # Split into tabs
+    today_list = []
+    upcoming_list = []
+    completed_list = []
+    missed_list = []
+    current_date = datetime.now().strftime("%Y-%m-%d")
+
+    for appt in appointments:
+        appt_date = str(appt['date'])
+        if appt['status'] == 'Completed':
+            completed_list.append(appt)
+        elif appt['status'] == 'Missed':
+            missed_list.append(appt)
+        elif appt_date > current_date:
+            upcoming_list.append(appt)
+        elif appt_date == current_date:
+            today_list.append(appt)
+
+    # Statistics
+    today_count = len(today_list)
+    queue_count = len([a for a in today_list if a['status'] in ['Booked', 'Waiting', 'In-Consultation']])
+    completed_count = len(completed_list)
+    upcoming_count = len(upcoming_list)
+
+    conn.close()
+
+    # Serialize appointments
+    def serialize_appointment(appt):
+        return {
+            'id': appt['id'],
+            'patient_name': appt['full_name'],
+            'queue_number': appt['queue_number'],
+            'time': str(appt['time']),
+            'date': str(appt['date']),
+            'status': appt['status'],
+            'priority': appt['priority'],
+            'urgency': appt['urgency'],
+            'symptoms': appt['symptoms'] or ''
+        }
+
+    return jsonify({
+        'doctor': {
+            'name': doctor['name'],
+            'specialist': doctor['specialist'],
+            'clinic_name': doctor['clinic_name']
+        },
+        'now_serving': serialize_appointment(now_serving) if now_serving else None,
+        'today': [serialize_appointment(a) for a in today_list],
+        'upcoming': [serialize_appointment(a) for a in upcoming_list],
+        'completed': [serialize_appointment(a) for a in completed_list],
+        'missed': [serialize_appointment(a) for a in missed_list],
+        'stats': {
+            'today_count': today_count,
+            'queue_count': queue_count,
+            'completed_count': completed_count,
+            'upcoming_count': upcoming_count
+        }
+    })
+
 
 # =========================
 # DOCTOR CONSULTATION
@@ -3898,6 +4023,12 @@ def consultation_history():
         ON a.triage_id = t.id
 
         WHERE a.patient_id=%s
+          AND a.status='Completed'
+          AND c.id = (
+              SELECT MAX(c2.id)
+              FROM consultations c2
+              WHERE c2.appointment_id = a.id
+          )
 
         ORDER BY a.date DESC,
                  a.time DESC

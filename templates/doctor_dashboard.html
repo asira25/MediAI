@@ -3,97 +3,111 @@
 
 <head>
 
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="UTF-8">
 
-<title>Doctor Dashboard - MEDIAI</title>
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1.0">
 
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <title>Doctor Dashboard - MEDIAI</title>
 
-<style>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
 
-body{
-    background:#f3f4f6;
-}
+    <style>
 
-.header{
-    background:white;
-    padding:25px 40px;
-    border-bottom:1px solid #ddd;
-}
+        body{
+            background:#f3f4f6;
+        }
 
-.stats-card{
-    background:white;
-    border-radius:15px;
-    padding:25px;
-    box-shadow:0 2px 10px rgba(0,0,0,0.05);
-}
+        .header{
+            background:white;
+            padding:25px 40px;
+            border-bottom:1px solid #ddd;
+        }
 
-.stats-number{
-    font-size:36px;
-    font-weight:bold;
-}
+        .stats-card{
+            background:white;
+            border-radius:15px;
+            padding:25px;
+            box-shadow:0 2px 10px rgba(0,0,0,0.05);
+        }
 
-.now-serving{
-    background:#e0f2fe;
-    border-left:5px solid #0284c7;
-    padding:20px;
-    border-radius:10px;
-}
+        .stats-number{
+            font-size:36px;
+            font-weight:bold;
+        }
 
-.appointment-card{
-    background:white;
-    border-radius:15px;
-    padding:20px;
-    margin-bottom:15px;
-    border:1px solid #eee;
-}
+        .now-serving{
+            background:#e0f2fe;
+            border-left:5px solid #0284c7;
+            padding:20px;
+            border-radius:10px;
+        }
 
-.priority-high{
-    background:#dc2626;
-    color:white;
-}
+        .appointment-card{
+            background:white;
+            border-radius:15px;
+            padding:20px;
+            margin-bottom:15px;
+            border:1px solid #eee;
+            transition: opacity .2s ease, transform .2s ease;
+        }
 
-.priority-medium{
-    background:#f59e0b;
-    color:white;
-}
+        .tab-pane.is-refreshing .appointment-card{
+            opacity:.65;
+            transform:translateY(2px);
+        }
 
-.priority-low{
-    background:#16a34a;
-    color:white;
-}
+        .priority-high{
+            background:#dc2626;
+            color:white;
+        }
 
-.priority-badge{
-    padding:6px 12px;
-    border-radius:20px;
-    font-size:12px;
-    font-weight:bold;
-}
+        .priority-medium{
+            background:#f59e0b;
+            color:white;
+        }
 
-.start-btn{
-    background:#020617;
-    color:white;
-    text-decoration:none;
-    padding:8px 18px;
-    border-radius:8px;
-}
+        .priority-low{
+            background:#16a34a;
+            color:white;
+        }
 
-.start-btn:hover{
-    color:white;
-}
+        .priority-badge{
+            padding:6px 12px;
+            border-radius:20px;
+            font-size:12px;
+            font-weight:bold;
+        }
 
-.symptoms{
-    color:#6b7280;
-    font-size:14px;
-}
+        .start-btn{
+            background:#020617;
+            color:white;
+            text-decoration:none;
+            padding:8px 18px;
+            border-radius:8px;
+        }
 
-.alert-danger{
-    border-radius:10px;
-    font-weight:bold;
-}
+        .start-btn:hover{
+            color:white;
+        }
 
-</style>
+        .symptoms{
+            color:#6b7280;
+            font-size:14px;
+        }
+
+        .alert-danger{
+            border-radius:10px;
+            font-weight:bold;
+        }
+
+        .live-indicator{
+            color:#22c55e;
+            font-size:12px;
+            font-weight:bold;
+        }
+
+    </style>
 
 </head>
 
@@ -102,18 +116,22 @@ body{
 <div class="header d-flex justify-content-between align-items-center">
 
     <div>
-        <h2>{{ doctor.name }}</h2>
+        <h2 id="doctor_name">{{ doctor.name }}</h2>
 
         <p class="mb-0">
-            {{ doctor.specialist }}
+            <span id="doctor_specialist">{{ doctor.specialist }}</span>
             •
-            {{ doctor.clinic_name }}
+            <span id="doctor_clinic">{{ doctor.clinic_name }}</span>
         </p>
     </div>
 
-    <a href="/logout" class="btn btn-outline-dark">
-        Logout
-    </a>
+    <div class="text-end">
+        <span class="live-indicator">● Live</span>
+        <br>
+        <a href="/logout" class="btn btn-outline-dark btn-sm">
+            Logout
+        </a>
+    </div>
 
 </div>
 
@@ -121,7 +139,7 @@ body{
 
     {% if now_serving %}
 
-    <div class="now-serving mb-4">
+    <div class="now-serving mb-4" id="now_serving_section">
 
         <h5>🩺 Now Serving</h5>
 
@@ -132,97 +150,107 @@ body{
         <br>
 
         Patient:
-        {{ now_serving.full_name }}
+        <span id="now_serving_patient">{{ now_serving.full_name }}</span>
 
-        {% if now_serving.status == 'Waiting' %}
+        <span id="now_serving_actions" class="float-end">
+            {% if now_serving.status == 'Waiting' %}
 
-        <a
-        href="{{ url_for('doctor_consultation', appointment_id=now_serving.id) }}"
-        class="btn btn-dark btn-sm float-end">
+            <a
+            href="{{ url_for('doctor_consultation', appointment_id=now_serving.id) }}"
+            class="btn btn-dark btn-sm">
 
-            <i class="fa fa-play"></i> Start Consultation
+                <i class="fa fa-play"></i> Start Consultation
 
-        </a>
+            </a>
 
-        {% elif now_serving.status == 'In-Consultation' %}
+            {% elif now_serving.status == 'In-Consultation' %}
 
-        <a
-        href="{{ url_for('doctor_consultation', appointment_id=now_serving.id) }}"
-        class="btn btn-success btn-sm float-end">
+            <a
+            href="{{ url_for('doctor_consultation', appointment_id=now_serving.id) }}"
+            class="btn btn-success btn-sm">
 
-            <i class="fa fa-stethoscope"></i> Continue Consultation
+                <i class="fa fa-stethoscope"></i> Continue Consultation
 
-        </a>
+            </a>
 
-        {% elif now_serving.status == 'Completed' %}
+            {% elif now_serving.status == 'Completed' %}
 
-        <a
-        href="{{ url_for('doctor_consultation', appointment_id=now_serving.id) }}"
-        class="btn btn-outline-secondary btn-sm float-end"
-        target="_blank">
+            <a
+            href="{{ url_for('doctor_consultation', appointment_id=now_serving.id) }}"
+            class="btn btn-outline-secondary btn-sm"
+            target="_blank">
 
-            <i class="fa fa-eye"></i> View Consultation
+                <i class="fa fa-eye"></i> View Consultation
 
-        </a>
+            </a>
 
-        {% endif %}
+            {% endif %}
+        </span>
 
+    </div>
+
+    {% else %}
+
+    <div class="now-serving mb-4" id="now_serving_section" style="display:none;">
+        <h5>🩺 Now Serving</h5>
+        <p class="mb-0">No patient currently in consultation</p>
     </div>
 
     {% endif %}
 
     <!-- Statistics -->
 
-    <div class="row mb-4">
+    <div class="row mb-4" id="stats_row">
 
         <div class="col-md-3">
             <div class="stats-card">
                 <p>Today's Appointments</p>
-                <div class="stats-number">{{ today_count }}</div>
+                <div class="stats-number" id="today_count">{{ today_count }}</div>
             </div>
         </div>
 
         <div class="col-md-3">
             <div class="stats-card">
                 <p>Patients in Queue</p>
-                <div class="stats-number">{{ queue_count }}</div>
+                <div class="stats-number" id="queue_count">{{ queue_count }}</div>
             </div>
         </div>
 
         <div class="col-md-3">
             <div class="stats-card">
                 <p>Completed Today</p>
-                <div class="stats-number">{{ completed_count }}</div>
+                <div class="stats-number" id="completed_count">{{ completed_count }}</div>
             </div>
         </div>
 
         <div class="col-md-3">
             <div class="stats-card">
                 <p>Upcoming Appointments</p>
-                <div class="stats-number">{{ upcoming_count }}</div>
+                <div class="stats-number" id="upcoming_count">{{ upcoming_count }}</div>
             </div>
         </div>
 
     </div>
-    
-<div class="mb-3">
 
-    <input
-        type="text"
-        id="searchInput"
-        class="form-control"
-        placeholder="Search patient name...">
+    <div class="mb-3">
 
-</div>
+        <input
+            type="text"
+            id="searchInput"
+            class="form-control"
+            placeholder="Search patient name...">
+
+    </div>
 
     <!-- Tabs -->
 
-    <ul class="nav nav-tabs">
+    <ul class="nav nav-tabs" id="appointmentTabs">
 
         <li class="nav-item">
             <button class="nav-link active"
                     data-bs-toggle="tab"
-                    data-bs-target="#today">
+                    data-bs-target="#today"
+                    id="tab-today">
                 Today
             </button>
         </li>
@@ -230,7 +258,8 @@ body{
         <li class="nav-item">
             <button class="nav-link"
                     data-bs-toggle="tab"
-                    data-bs-target="#upcoming">
+                    data-bs-target="#upcoming"
+                    id="tab-upcoming">
                 Upcoming
             </button>
         </li>
@@ -238,26 +267,28 @@ body{
         <li class="nav-item">
             <button class="nav-link"
                     data-bs-toggle="tab"
-                    data-bs-target="#completed">
+                    data-bs-target="#completed"
+                    id="tab-completed">
                 Completed
             </button>
         </li>
 
         <li class="nav-item">
 
-    <button class="nav-link"
-            data-bs-toggle="tab"
-            data-bs-target="#missed">
+            <button class="nav-link"
+                    data-bs-toggle="tab"
+                    data-bs-target="#missed"
+                    id="tab-missed">
 
-        Missed
+                Missed
 
-    </button>
+            </button>
 
-</li>
+        </li>
 
     </ul>
 
-    <div class="tab-content mt-4">
+    <div class="tab-content mt-4" id="tab_content">
 
         <!-- TODAY -->
 
@@ -267,7 +298,7 @@ body{
 
                 {% for appt in today %}
 
-                <div class="appointment-card">
+                <div class="appointment-card" data-appointment-id="{{ appt.id }}">
 
                     <div class="row align-items-center">
 
@@ -297,12 +328,11 @@ body{
                                 Appointment Time:
                                 {{ appt.time }}
                             </p>
-                            
+
                             <p>
                                 Appointment Date:
                                 {{ appt.date }}
-                           </p>
-
+                            </p>
 
                             <p class="symptoms">
                                 {{ appt.symptoms if appt.symptoms else 'No symptoms available' }}
@@ -330,7 +360,7 @@ body{
 
                                         </span>
 
-                                        <span class="badge bg-secondary ms-2">
+                                        <span class="badge bg-secondary ms-2" id="status-{{ appt.id }}">
 
                                         {{ appt.status }}
 
@@ -338,38 +368,38 @@ body{
 
                         </div>
 
-                        <div class="col-md-4 text-end">
+                        <div class="col-md-4 text-end" id="actions-{{ appt.id }}">
 
                             {% if appt.status == 'Waiting' %}
 
-<a
-href="{{ url_for('doctor_consultation', appointment_id=appt.id) }}"
-class="start-btn">
+                        <a
+                        href="{{ url_for('doctor_consultation', appointment_id=appt.id) }}"
+                        class="start-btn">
 
-<i class="fa fa-play"></i> Start Consultation
+                        <i class="fa fa-play"></i> Start Consultation
 
-</a>
+                        </a>
 
                             {% elif appt.status == 'In-Consultation' %}
 
-<a
-href="{{ url_for('doctor_consultation', appointment_id=appt.id) }}"
-class="btn btn-success">
+                        <a
+                        href="{{ url_for('doctor_consultation', appointment_id=appt.id) }}"
+                        class="btn btn-success">
 
-<i class="fa fa-stethoscope"></i> Continue Consultation
+                        <i class="fa fa-stethoscope"></i> Continue Consultation
 
-</a>
+                        </a>
 
                             {% elif appt.status == 'Completed' %}
 
-<a
-href="{{ url_for('doctor_consultation', appointment_id=appt.id) }}"
-class="btn btn-outline-secondary"
-target="_blank">
+                        <a
+                        href="{{ url_for('doctor_consultation', appointment_id=appt.id) }}"
+                        class="btn btn-outline-secondary"
+                        target="_blank">
 
-<i class="fa fa-eye"></i> View Consultation
+                        <i class="fa fa-eye"></i> View Consultation
 
-</a>
+                        </a>
 
                             {% endif %}
 
@@ -393,124 +423,128 @@ target="_blank">
 
       <!-- UPCOMING -->
 
-<div class="tab-pane fade" id="upcoming">
+    <div class="tab-pane fade" id="upcoming">
 
-    {% if upcoming %}
+        {% if upcoming %}
 
-        {% for appt in upcoming %}
+            {% for appt in upcoming %}
 
-        <div class="appointment-card">
+            <div class="appointment-card" data-appointment-id="{{ appt.id }}">
 
-            <h5>
-                Queue #{{ appt.queue_number }}
-            </h5>
+                <h5>
+                    Queue #{{ appt.queue_number }}
+                </h5>
 
-            <p>
-                <strong>Patient:</strong>
-                {{ appt.full_name }}
-            </p>
+                <p>
+                    <strong>Patient:</strong>
+                    {{ appt.full_name }}
+                </p>
 
-            <p>
-                {{ appt.date }} | {{ appt.time }}
-            </p>
+                <p>
+                    {{ appt.date }} | {{ appt.time }}
+                </p>
 
-        </div>
+                <span class="badge bg-primary">
+                    {{ appt.status }}
+                </span>
 
-        {% endfor %}
+            </div>
 
-    {% else %}
+            {% endfor %}
 
-        <div class="text-center mt-4">
-            <h5>No upcoming appointments</h5>
-        </div>
+        {% else %}
 
-    {% endif %}
+            <div class="text-center mt-4">
+                <h5>No upcoming appointments</h5>
+            </div>
 
-</div>
+        {% endif %}
 
-<!-- COMPLETED -->
+    </div>
 
-<div class="tab-pane fade" id="completed">
+    <!-- COMPLETED -->
 
-    {% if completed %}
+    <div class="tab-pane fade" id="completed">
 
-        {% for appt in completed %}
+        {% if completed %}
 
-        <div class="appointment-card">
+            {% for appt in completed %}
 
-            <h5>
-                Queue #{{ appt.queue_number }}
-            </h5>
+            <div class="appointment-card" data-appointment-id="{{ appt.id }}">
 
-            <p>
-                <strong>Patient:</strong>
-                {{ appt.full_name }}
-            </p>
+                <h5>
+                    Queue #{{ appt.queue_number }}
+                </h5>
 
-            <p>
-                {{ appt.date }} | {{ appt.time }}
-            </p>
+                <p>
+                    <strong>Patient:</strong>
+                    {{ appt.full_name }}
+                </p>
 
-            <span class="badge bg-success">
-                Completed
-            </span>
+                <p>
+                    {{ appt.date }} | {{ appt.time }}
+                </p>
 
-        </div>
+                <span class="badge bg-success">
+                    Completed
+                </span>
 
-        {% endfor %}
+            </div>
 
-    {% else %}
+            {% endfor %}
 
-        <div class="text-center mt-4">
-            <h5>No completed consultations</h5>
-        </div>
+        {% else %}
 
-    {% endif %}
+            <div class="text-center mt-4">
+                <h5>No completed consultations</h5>
+            </div>
 
-</div>
+        {% endif %}
 
-<!-- MISSED -->
+    </div>
 
-<div class="tab-pane fade" id="missed">
+    <!-- MISSED -->
 
-    {% if missed %}
+    <div class="tab-pane fade" id="missed">
 
-        {% for appt in missed %}
+        {% if missed %}
 
-        <div class="appointment-card">
+            {% for appt in missed %}
 
-            <h5>
-                Queue #{{ appt.queue_number }}
-            </h5>
+            <div class="appointment-card" data-appointment-id="{{ appt.id }}">
 
-            <p>
-                <strong>Patient:</strong>
-                {{ appt.full_name }}
-            </p>
+                <h5>
+                    Queue #{{ appt.queue_number }}
+                </h5>
 
-            <p>
-                {{ appt.date }} | {{ appt.time }}
-            </p>
+                <p>
+                    <strong>Patient:</strong>
+                    {{ appt.full_name }}
+                </p>
 
-            <span class="badge bg-danger">
-                Missed
-            </span>
+                <p>
+                    {{ appt.date }} | {{ appt.time }}
+                </p>
 
-        </div>
+                <span class="badge bg-danger">
+                    Missed
+                </span>
 
-        {% endfor %}
+            </div>
 
-    {% else %}
+            {% endfor %}
 
-        <div class="text-center mt-4">
-            <h5>No missed appointments</h5>
-        </div>
+        {% else %}
 
-    {% endif %}
+            <div class="text-center mt-4">
+                <h5>No missed appointments</h5>
+            </div>
 
-</div>
+        {% endif %}
 
-</div> <!-- End of tab-content -->
+    </div>
+
+    </div> <!-- End of tab-content -->
 
 </div> <!-- End of container -->
 
@@ -518,50 +552,261 @@ target="_blank">
 
 <script>
 
-// Search Patient
-document
-.getElementById("searchInput")
-.addEventListener("keyup", function(){
+// =========================
+// SEARCH PATIENT
+// =========================
+const searchInput = document.getElementById('searchInput');
 
-    let filter =
-    this.value.toLowerCase();
+function applySearchFilter(){
+    const filter = searchInput.value.toLowerCase();
 
-    let cards =
-    document.querySelectorAll(".appointment-card");
+    document.querySelectorAll('.appointment-card').forEach(card => {
+        card.style.display = card.innerText.toLowerCase().includes(filter) ? 'block' : 'none';
+    });
+}
 
-    cards.forEach(card => {
+searchInput.addEventListener('input', applySearchFilter);
 
-        if(
-            card.innerText
-            .toLowerCase()
-            .includes(filter)
-        ){
+// =========================
+// AJAX AUTO REFRESH
+// =========================
+// Fetch fresh data every 10 seconds without page reload
+async function refreshDashboard(){
 
-            card.style.display = "block";
+    try {
 
-        }else{
+        const response = await fetch('/api/doctor_dashboard_data');
 
-            card.style.display = "none";
+        if (!response.ok) {
+            console.error('Dashboard refresh failed:', response.status);
+            return;
+        }
+
+        const data = await response.json();
+
+        // Keep the header in sync if the doctor's profile is updated elsewhere.
+        document.getElementById('doctor_name').textContent = data.doctor.name;
+        document.getElementById('doctor_specialist').textContent = data.doctor.specialist;
+        document.getElementById('doctor_clinic').textContent = data.doctor.clinic_name;
+
+        // =========================
+        // UPDATE STATS
+        // =========================
+        document.getElementById('today_count').textContent = data.stats.today_count;
+        document.getElementById('queue_count').textContent = data.stats.queue_count;
+        document.getElementById('completed_count').textContent = data.stats.completed_count;
+        document.getElementById('upcoming_count').textContent = data.stats.upcoming_count;
+
+        // =========================
+        // UPDATE NOW SERVING
+        // =========================
+        const nowServingSection = document.getElementById('now_serving_section');
+
+        if (data.now_serving) {
+
+            nowServingSection.style.display = 'block';
+
+            nowServingSection.innerHTML = `
+                <h5>🩺 Now Serving</h5>
+                <strong>Queue #${escapeHtml(data.now_serving.queue_number)}</strong>
+                <br>
+                Patient: <span id="now_serving_patient">${escapeHtml(data.now_serving.patient_name)}</span>
+                <span id="now_serving_actions" class="float-end">
+                    ${getActionButton(data.now_serving)}
+                </span>
+            `;
+
+        } else {
+
+            nowServingSection.style.display = 'none';
+
+        }
+
+        // =========================
+        // UPDATE TODAY TAB
+        // =========================
+        updateTab('today', data.today, 'today');
+
+        // =========================
+        // UPDATE UPCOMING TAB
+        // =========================
+        updateTab('upcoming', data.upcoming, 'upcoming');
+
+        // =========================
+        // UPDATE COMPLETED TAB
+        // =========================
+        updateTab('completed', data.completed, 'completed');
+
+        // =========================
+        // UPDATE MISSED TAB
+        // =========================
+        updateTab('missed', data.missed, 'missed');
+
+        // Reapply the current search after replacing the card markup.
+        applySearchFilter();
+
+        console.log('Dashboard refreshed at', new Date().toLocaleTimeString());
+
+    } catch (error) {
+
+        console.error('Error refreshing dashboard:', error);
+
+    }
+
+}
+
+// =========================
+// HELPER: GET ACTION BUTTON HTML
+// =========================
+function getActionButton(appt){
+
+    if (appt.status === 'Waiting') {
+
+        return `<a href="/doctor_consultation/${appt.id}" class="start-btn">
+                    <i class="fa fa-play"></i> Start Consultation
+                </a>`;
+
+    } else if (appt.status === 'In-Consultation') {
+
+        return `<a href="/doctor_consultation/${appt.id}" class="btn btn-success">
+                    <i class="fa fa-stethoscope"></i> Continue Consultation
+                </a>`;
+
+    } else if (appt.status === 'Completed') {
+
+        return `<a href="/doctor_consultation/${appt.id}" class="btn btn-outline-secondary" target="_blank">
+                    <i class="fa fa-eye"></i> View Consultation
+                </a>`;
+
+    }
+
+    return '';
+
+}
+
+function escapeHtml(value){
+    const element = document.createElement('div');
+    element.textContent = value ?? '';
+    return element.innerHTML;
+}
+
+// =========================
+// HELPER: UPDATE TAB CONTENT
+// =========================
+function updateTab(tabId, appointments, type){
+
+    const tabPane = document.getElementById(tabId);
+
+    if (!tabPane) return;
+
+    tabPane.classList.add('is-refreshing');
+
+    if (appointments.length === 0) {
+
+        const emptyMessages = {
+            today: 'No appointments today',
+            upcoming: 'No upcoming appointments',
+            completed: 'No completed consultations',
+            missed: 'No missed appointments'
+        };
+
+        tabPane.innerHTML = `
+            <div class="text-center mt-4">
+                <h5>${emptyMessages[type]}</h5>
+            </div>
+        `;
+
+        tabPane.classList.remove('is-refreshing');
+        return;
+
+    }
+
+    let html = '';
+
+    appointments.forEach(appt => {
+
+        if (type === 'today') {
+
+            const priorityBadgeClass = appt.priority === 'HIGH' ? 'priority-high' :
+                                       appt.priority === 'MEDIUM' ? 'priority-medium' :
+                                       'priority-low';
+
+            const urgentAlert = (appt.priority === 'HIGH' && appt.urgency.toLowerCase() === 'very urgent') ?
+                '<div class="alert alert-danger mb-2">⚠ Priority Queue Patient</div>' : '';
+
+            html += `
+                <div class="appointment-card" data-appointment-id="${appt.id}">
+                    <div class="row align-items-center">
+                        <div class="col-md-8">
+                            ${urgentAlert}
+                            <h5>Queue #${escapeHtml(appt.queue_number)}</h5>
+                            <p><strong>Patient:</strong> ${escapeHtml(appt.patient_name)}</p>
+                            <p>Appointment Time: ${escapeHtml(appt.time)}</p>
+                            <p>Appointment Date: ${escapeHtml(appt.date)}</p>
+                            <p class="symptoms">${escapeHtml(appt.symptoms || 'No symptoms available')}</p>
+                            <span class="priority-badge ${priorityBadgeClass}">${escapeHtml(appt.priority)}</span>
+                            <span class="badge bg-danger ms-2">${escapeHtml(appt.urgency)}</span>
+                            <span class="badge bg-secondary ms-2" id="status-${appt.id}">${escapeHtml(appt.status)}</span>
+                        </div>
+                        <div class="col-md-4 text-end" id="actions-${appt.id}">
+                            ${getActionButton(appt)}
+                        </div>
+                    </div>
+                </div>
+            `;
+
+        } else if (type === 'upcoming') {
+
+            html += `
+                <div class="appointment-card" data-appointment-id="${appt.id}">
+                    <h5>Queue #${escapeHtml(appt.queue_number)}</h5>
+                    <p><strong>Patient:</strong> ${escapeHtml(appt.patient_name)}</p>
+                    <p>${escapeHtml(appt.date)} | ${escapeHtml(appt.time)}</p>
+                    <span class="badge bg-primary">${escapeHtml(appt.status)}</span>
+                </div>
+            `;
+
+        } else if (type === 'completed') {
+
+            html += `
+                <div class="appointment-card" data-appointment-id="${appt.id}">
+                    <h5>Queue #${escapeHtml(appt.queue_number)}</h5>
+                    <p><strong>Patient:</strong> ${escapeHtml(appt.patient_name)}</p>
+                    <p>${escapeHtml(appt.date)} | ${escapeHtml(appt.time)}</p>
+                    <span class="badge bg-success">Completed</span>
+                </div>
+            `;
+
+        } else if (type === 'missed') {
+
+            html += `
+                <div class="appointment-card" data-appointment-id="${appt.id}">
+                    <h5>Queue #${escapeHtml(appt.queue_number)}</h5>
+                    <p><strong>Patient:</strong> ${escapeHtml(appt.patient_name)}</p>
+                    <p>${escapeHtml(appt.date)} | ${escapeHtml(appt.time)}</p>
+                    <span class="badge bg-danger">Missed</span>
+                </div>
+            `;
 
         }
 
     });
 
-});
+    tabPane.innerHTML = html;
+    requestAnimationFrame(() => tabPane.classList.remove('is-refreshing'));
+
+}
 
 // =========================
-// AUTO REFRESH DASHBOARD
+// INITIAL LOAD + POLLING
 // =========================
-// Refresh every 60 seconds to sync with APScheduler updates
+// Initial load
+refreshDashboard();
 
-setInterval(function(){
-
-    location.reload();
-
-},60000);
+// Refresh every 10 seconds for instant updates
+setInterval(refreshDashboard, 10000);
 
 </script>
 
 </body>
-
 </html>
