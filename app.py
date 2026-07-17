@@ -517,6 +517,7 @@ def register():
 
         conn.close()
 
+        flash("Registration successful! Please login.", "success")
         return redirect(url_for('patient_login'))
 
     return render_template('patient_register.html')
