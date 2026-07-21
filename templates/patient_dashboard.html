@@ -192,6 +192,37 @@ body{
     padding:12px;
     border-radius:10px;
     margin-bottom:10px;
+    display:flex;
+    align-items:flex-start;
+    gap:10px;
+}
+
+.notification-unread{
+    background:#eef4ff;
+    border-left-color:#2563eb;
+    font-weight:500;
+}
+
+.notification-dot{
+    width:10px;
+    height:10px;
+    background:#2563eb;
+    border-radius:50%;
+    flex-shrink:0;
+    margin-top:6px;
+}
+
+.notification-content{
+    flex:1;
+}
+
+.notification-content h6{
+    margin-bottom:4px;
+}
+
+.notification-content p{
+    margin-bottom:4px;
+    font-size:0.9rem;
 }
 
 </style>
@@ -325,9 +356,19 @@ body{
     <!-- NOTIFICATIONS -->
     <div class="card-box">
 
-        <div class="section-title">
+        <div class="section-title d-flex align-items-center gap-2">
 
             🔔 Notifications
+
+            {% if unread_count > 0 %}
+
+            <span class="badge bg-primary rounded-pill">
+
+                {{ unread_count }} unread
+
+            </span>
+
+            {% endif %}
 
         </div>
 
@@ -341,25 +382,36 @@ body{
 
             {% for note in notifications %}
 
-            <div class="notification-box">
+            {% set is_unread = (note.is_read == 0 or note.is_read == '0' or note.is_read == 'No' or note.is_read == 'no' or not note.is_read) %}
+            <div class="notification-box {% if is_unread %}notification-unread{% endif %}">
 
-                <h6 class="fw-bold mb-1">
+                {% if is_unread %}
 
-                    {{ note.title }}
+                <span class="notification-dot"></span>
 
-                </h6>
+                {% endif %}
 
-                <p class="mb-1">
+                <div class="notification-content">
 
-                    {{ note.message }}
+                    <h6 class="fw-bold mb-1">
 
-                </p>
+                        {{ note.title }}
 
-                <small class="text-muted">
+                    </h6>
 
-                    {{ note.created_at }}
+                    <p class="mb-1">
 
-                </small>
+                        {{ note.message }}
+
+                    </p>
+
+                    <small class="text-muted">
+
+                        {{ note.created_at }}
+
+                    </small>
+
+                </div>
 
             </div>
 
@@ -1064,6 +1116,26 @@ body{
 setInterval(function(){
     location.reload();
 }, 30000);
+
+// =========================
+// MARK NOTIFICATIONS AS READ
+// =========================
+// Automatically mark all notifications as read when dashboard loads
+fetch('/mark_notifications_read', {
+    method: 'POST',
+    headers: {
+        'Content-Type': 'application/json',
+    }
+})
+.then(response => response.json())
+.then(data => {
+    if (data.success && data.marked_read > 0) {
+        console.log(`[Notifications] Marked ${data.marked_read} notifications as read`);
+    }
+})
+.catch(error => {
+    console.error('[Notifications] Error marking notifications as read:', error);
+});
 </script>
 
 </body>

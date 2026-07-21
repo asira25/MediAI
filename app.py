@@ -1,4 +1,5 @@
 import email
+import hashlib
 
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify, flash, send_file
 from flask_cors import CORS
@@ -128,6 +129,26 @@ def update_single_appointment_status(appointment_id):
                 UPDATE appointments SET status=%s WHERE id=%s
             """, (new_status, appointment_id))
             conn.commit()
+            
+            # If the appointment was marked as Missed, create a notification for the patient
+            if new_status == 'Missed':
+                dedup_key = create_notification_key(
+                    appointment['patient_id'], 
+                    'missed', 
+                    appointment_id
+                )
+                create_notification(
+                    appointment['patient_id'],
+                    "Appointment Missed",
+                    f"""
+                    Your appointment with {appointment['doctor_name']}
+                    on {appointment['date']} at {appointment['time']}
+                    has been marked as missed.
+
+                    Please book another appointment.
+                    """,
+                    dedup_key=dedup_key
+                )
         
         conn.close()
         return new_status
@@ -153,11 +174,11 @@ def update_all_appointment_statuses():
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
         
-        # Get all active appointments (not in final state)
+        # Get all active appointments (not in final state) regardless of date
+        # Past appointments need to be checked so overdue ones get marked as Missed
         cursor.execute("""
             SELECT id FROM appointments 
             WHERE status NOT IN ('Completed', 'Cancelled', 'Missed')
-            AND date >= CURDATE()
         """)
         
         appointments = cursor.fetchall()
@@ -191,6 +212,80 @@ scheduler.add_job(
 )
 
 print("[Scheduler] Background job scheduled: update_appointment_statuses every 15 seconds")
+
+
+# =========================
+# NOTIFICATION HELPER
+# =========================
+# Centralized notification creation with deduplication support.
+# Uses a notification_key (SHA-256 hash of patient_id + event_type + appointment_id)
+# to prevent duplicate notifications from being created when the
+# scheduler runs multiple times or the same event is processed again.
+
+def create_notification(patient_id, title, message, dedup_key=None):
+    """
+    Create a notification for a patient with deduplication support.
+    
+    Args:
+        patient_id (int): The patient's ID
+        title (str): Notification title (e.g. "Appointment Missed")
+        message (str): Notification message body
+        dedup_key (str, optional): Unique key to prevent duplicates.
+            If a notification with this key already exists, no new
+            notification is created.
+    
+    Returns:
+        bool: True if notification was created, False if skipped (duplicate)
+    """
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        
+        # If a dedup_key is provided, check if this notification already exists
+        if dedup_key:
+            cursor.execute("""
+                SELECT id FROM notifications 
+                WHERE notification_key = %s
+            """, (dedup_key,))
+            if cursor.fetchone():
+                conn.close()
+                return False  # Duplicate — skip creation
+        
+        # Insert the notification (always unread by default)
+        if dedup_key:
+            cursor.execute("""
+                INSERT INTO notifications (patient_id, title, message, notification_key, is_read)
+                VALUES (%s, %s, %s, %s, 0)
+            """, (patient_id, title, message, dedup_key))
+        else:
+            cursor.execute("""
+                INSERT INTO notifications (patient_id, title, message, is_read)
+                VALUES (%s, %s, %s, 0)
+            """, (patient_id, title, message))
+        
+        conn.commit()
+        conn.close()
+        return True
+        
+    except Exception as e:
+        print(f"[Notifications] Error creating notification: {str(e)}")
+        return False
+
+
+def create_notification_key(patient_id, event_type, appointment_id):
+    """
+    Generate a unique deduplication key for a notification event.
+    
+    Args:
+        patient_id (int): The patient's ID
+        event_type (str): Type of event (e.g. 'missed', 'completed')
+        appointment_id (int): The appointment ID
+    
+    Returns:
+        str: SHA-256 hash string used as dedup key
+    """
+    raw = f"{patient_id}_{event_type}_{appointment_id}"
+    return hashlib.sha256(raw.encode()).hexdigest()
 
 
 # =========================
@@ -706,6 +801,7 @@ def patient_dashboard():
     # =========================
     # GET NOTIFICATIONS
     # =========================
+    # Sort by is_read ASC (unread first), then by id DESC (newest first)
     cursor.execute("""
 
         SELECT *
@@ -714,7 +810,7 @@ def patient_dashboard():
 
         WHERE patient_id=%s
 
-        ORDER BY id DESC
+        ORDER BY is_read ASC, id DESC
 
     """, (
 
@@ -723,6 +819,10 @@ def patient_dashboard():
     ))
 
     notifications = cursor.fetchall()
+    
+    # Count unread notifications
+    # Handle both TINYINT (0/1) and varchar ('No'/'Yes') column types
+    unread_count = sum(1 for n in notifications if str(n.get('is_read', '0')) in ('0', 'No', 'no', ''))
 
     # =========================
     # RECENT CONSULTATION (MOST RECENT ONLY)
@@ -796,6 +896,8 @@ def patient_dashboard():
         active_appointment=active_appointment,
 
         notifications=notifications,
+
+        unread_count=unread_count,
 
         recent_consultation=recent_consultation,
 
@@ -4097,7 +4199,41 @@ def complete_consultation():
     ))
 
     conn.commit()
+    
+    # =========================
+    # CREATE NOTIFICATION
+    # =========================
+    # Get appointment details for the notification message
+    cursor.execute("""
+        SELECT a.*, p.full_name, d.name as doctor_name
+        FROM appointments a
+        JOIN patients p ON a.patient_id = p.id
+        JOIN doctors d ON a.doctor_id = d.id
+        WHERE a.id=%s
+    """, (appointment_id,))
+    
+    appointment_details = cursor.fetchone()
+    
+    if appointment_details:
+        dedup_key = create_notification_key(
+            appointment_details['patient_id'],
+            'completed',
+            appointment_id
+        )
+        create_notification(
+            appointment_details['patient_id'],
+            "Consultation Completed",
+            f"""
+            Your consultation with {appointment_details['doctor_name']}
+            on {appointment_details['date']} at {appointment_details['time']}
+            has been completed.
 
+            Thank you for using MEDIAI!
+            """,
+            dedup_key=dedup_key
+        )
+
+    conn.commit()
     conn.close()
 
     return render_template(
@@ -4769,7 +4905,8 @@ def clinic_dashboard():
 
         FROM appointments
 
-        WHERE status IN
+        WHERE date = CURDATE()
+        AND status IN
         (
             'Booked',
             'Waiting',
@@ -4835,7 +4972,7 @@ def clinic_dashboard():
 
         clinic['appointment_count'] = cursor.fetchone()['total']
 
-        # Waiting patients
+        # Waiting patients (today only - past appointments should not count)
         cursor.execute("""
 
             SELECT COUNT(*) AS total
@@ -4843,6 +4980,7 @@ def clinic_dashboard():
             FROM appointments
 
             WHERE clinic=%s
+            AND date = CURDATE()
             AND status IN
             (
                 'Booked',
@@ -5138,7 +5276,7 @@ def clinic_details(id):
     appointment_count = cursor.fetchone()['total']
 
     # =========================
-    # CURRENT QUEUE
+    # CURRENT QUEUE (today only)
     # =========================
     cursor.execute("""
 
@@ -5147,6 +5285,7 @@ def clinic_details(id):
         FROM appointments
 
         WHERE clinic=%s
+        AND date = CURDATE()
         AND status IN
         (
             'Booked',
@@ -6688,6 +6827,39 @@ def queue_monitoring():
         total_doctors_active=total_doctors_active,
         last_updated=datetime.now().strftime("%d %b %Y %I:%M %p")
     )
+
+
+# =========================
+# MARK NOTIFICATIONS AS READ
+# =========================
+@app.route('/mark_notifications_read', methods=['POST'])
+def mark_notifications_read():
+
+    if 'patient_id' not in session:
+        return jsonify({'error': 'Not authenticated'}), 401
+    
+    patient_id = session['patient_id']
+    
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Mark all notifications for this patient as read
+        cursor.execute("""
+            UPDATE notifications
+            SET is_read = 1
+            WHERE patient_id = %s
+            AND is_read = 0
+        """, (patient_id,))
+        
+        conn.commit()
+        conn.close()
+        
+        return jsonify({'success': True, 'marked_read': cursor.rowcount})
+        
+    except Exception as e:
+        print(f"[Notifications] Error marking notifications as read: {str(e)}")
+        return jsonify({'error': str(e)}), 500
 
 
 # =========================
