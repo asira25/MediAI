@@ -510,173 +510,181 @@
     </div>
 </div>
 
-<!-- FILTER / SEARCH -->
+<!-- SELECT CLINIC TO VIEW LIVE QUEUE -->
 <div class="filter-row">
-    <span class="fw-bold me-2"><i class="fa fa-filter"></i> Filter:</span>
-    <select id="clinicFilter" onchange="filterQueue()">
-        <option value="all">All Clinics</option>
+    <span class="fw-bold me-2"><i class="fa fa-hospital"></i> 🏥 Select Clinic to View Live Queue:</span>
+    <select id="clinicSelect" onchange="filterByClinic()">
+        <option value="">-- Select Clinic --</option>
         {% for clinic in clinics %}
-            <option value="clinic-{{ clinic.id }}">{{ clinic.clinic_name }}</option>
-        {% endfor %}
-    </select>
-    <select id="doctorFilter" onchange="filterQueue()">
-        <option value="all">All Doctors</option>
-        {% for doctor in all_doctors %}
-            <option value="doctor-{{ doctor.id }}">Dr. {{ doctor.name }}</option>
+            <option value="{{ clinic.id }}">{{ clinic.clinic_name }}</option>
         {% endfor %}
     </select>
 </div>
 
-<!-- DOCTOR QUEUES -->
-{% if doctor_queues %}
-<div class="doctor-grid" id="doctorGrid">
-    {% for doctor_id, appointments in doctor_queues.items() %}
-    {% set doctor = all_doctors|selectattr("id", "equalto", doctor_id)|first %}
-    {% if doctor %}
-    {% set clinic = clinics|selectattr("id", "equalto", doctor.clinic_id)|first %}
-    <div class="doctor-card clinic-{{ doctor.clinic_id }} doctor-{{ doctor_id }}">
-        <div class="doctor-header">
-            <div>
-                <h5><i class="fa fa-user-md"></i> Dr. {{ doctor.name }}</h5>
-                <small>{{ doctor.specialist }} 
-                    {% if clinic %}
-                    <span class="clinic-badge">{{ clinic.clinic_name }}</span>
-                    {% endif %}
-                </small>
-            </div>
-            <div class="text-end">
-                {% set waiting_count = appointments|selectattr("status", "equalto", "Waiting")|list|length %}
-                {% set booked_count = appointments|selectattr("status", "equalto", "Booked")|list|length %}
-                <span class="badge bg-light text-dark d-block mb-1">{{ appointments|length }} patients</span>
-                {% if waiting_count > 0 %}
-                    <span class="badge bg-warning text-dark">{{ waiting_count }} waiting</span>
-                {% endif %}
-            </div>
-        </div>
+<!-- DEFAULT EMPTY STATE (shown when no clinic is selected) -->
+<div id="emptyQueueState" class="empty-state">
+    <i class="fa fa-hospital"></i>
+    <h4>🏥 Select a clinic to view its live queue monitoring.</h4>
+    <p>Choose a clinic from the dropdown above to display the current patient queue and doctor activity.</p>
+</div>
 
-        {% set in_consultation = appointments|selectattr("status", "equalto", "In-Consultation")|list %}
-        {% set waiting_list = appointments|rejectattr("status", "equalto", "In-Consultation")|list %}
+<!-- DETAILED CLINIC QUEUE MONITORING (shown when a clinic is selected) -->
+<div id="clinicQueueSection" style="display:none;">
+    <div class="filter-row">
+        <h5 id="selectedClinicTitle" class="mb-0"><i class="fa fa-hospital text-primary"></i> <span id="clinicNameDisplay"></span> - Live Queue</h5>
+    </div>
 
-        <!-- Now Serving -->
-        {% if in_consultation %}
-        {% set current = in_consultation[0] %}
-        <div class="now-serving">
-            <div>
-                <small>Now Serving</small>
-                <div class="patient-name">
-                    <i class="fa fa-user"></i> {{ current.patient_name }}
-                </div>
-                <small>Queue #{{ current.queue_number }} | {{ current.time }}</small>
-            </div>
-            <span class="status-badge badge-in-consultation">
-                <i class="fa fa-circle-check"></i> In Consultation
-            </span>
-        </div>
-        {% else %}
-        <div class="now-serving" style="background:#fff8e1;border-left-color:#ff9800;">
-            <div>
-                <small>Waiting for patient</small>
-                <div class="patient-name" style="color:#ff9800;">
-                    <i class="fa fa-clock"></i> No active consultation
-                </div>
-            </div>
-        </div>
-        {% endif %}
-
-        <!-- Waiting Queue -->
-        <div class="patient-list">
-            {% if waiting_list %}
-            {% for apt in waiting_list %}
-            <div class="patient-item">
-                <div class="queue-number">#{{ apt.queue_number }}</div>
-                <div class="patient-info">
-                    <div class="name">{{ apt.patient_name }}</div>
-                    <div class="time">
-                        <i class="fa fa-clock"></i> {{ apt.time }}
-                        {% if apt.wait_time %}
-                        <span class="wait-time ms-2">
-                            <i class="fa fa-hourglass"></i> {{ apt.wait_time }}
-                        </span>
+    <!-- DOCTOR QUEUES -->
+    {% if doctor_queues %}
+    <div class="doctor-grid" id="doctorGrid">
+        {% for doctor_id, appointments in doctor_queues.items() %}
+        {% set doctor = all_doctors|selectattr("id", "equalto", doctor_id)|first %}
+        {% if doctor %}
+        {% set clinic = clinics|selectattr("id", "equalto", doctor.clinic_id)|first %}
+        <div class="doctor-card" data-clinic-id="{{ doctor.clinic_id }}" data-doctor-id="{{ doctor_id }}">
+            <div class="doctor-header">
+                <div>
+                    <h5><i class="fa fa-user-md"></i> Dr. {{ doctor.name }}</h5>
+                    <small>{{ doctor.specialist }} 
+                        {% if clinic %}
+                        <span class="clinic-badge">{{ clinic.clinic_name }}</span>
                         {% endif %}
-                    </div>
-                    {% if apt.patient_contact %}
-                    <div class="contact">
-                        <i class="fa fa-phone"></i> {{ apt.patient_contact }}
-                    </div>
-                    {% endif %}
+                    </small>
                 </div>
                 <div class="text-end">
-                    {% if apt.priority == 'HIGH' %}
-                    <span class="status-badge priority-high">HIGH</span>
-                    {% elif apt.priority == 'MEDIUM' %}
-                    <span class="status-badge priority-medium">MEDIUM</span>
-                    {% else %}
-                    <span class="status-badge priority-low">LOW</span>
-                    {% endif %}
-                    
-                    {% if apt.status == 'Booked' %}
-                    <span class="status-badge badge-booked ms-1">Booked</span>
-                    {% elif apt.status == 'Waiting' %}
-                    <span class="status-badge badge-waiting ms-1">Waiting</span>
+                    {% set waiting_count = appointments|selectattr("status", "equalto", "Waiting")|list|length %}
+                    {% set booked_count = appointments|selectattr("status", "equalto", "Booked")|list|length %}
+                    <span class="badge bg-light text-dark d-block mb-1">{{ appointments|length }} patients</span>
+                    {% if waiting_count > 0 %}
+                        <span class="badge bg-warning text-dark">{{ waiting_count }} waiting</span>
                     {% endif %}
                 </div>
             </div>
-            {% endfor %}
+
+            {% set in_consultation = appointments|selectattr("status", "equalto", "In-Consultation")|list %}
+            {% set waiting_list = appointments|rejectattr("status", "equalto", "In-Consultation")|list %}
+
+            <!-- Now Serving -->
+            {% if in_consultation %}
+            {% set current = in_consultation[0] %}
+            <div class="now-serving">
+                <div>
+                    <small>Now Serving</small>
+                    <div class="patient-name">
+                        <i class="fa fa-user"></i> {{ current.patient_name }}
+                    </div>
+                    <small>Queue #{{ current.queue_number }} | {{ current.time }}</small>
+                </div>
+                <span class="status-badge badge-in-consultation">
+                    <i class="fa fa-circle-check"></i> In Consultation
+                </span>
+            </div>
             {% else %}
-            <div class="no-patients">
-                <i class="fa fa-check-circle text-success me-1"></i> No waiting patients. All clear!
+            <div class="now-serving" style="background:#fff8e1;border-left-color:#ff9800;">
+                <div>
+                    <small>Waiting for patient</small>
+                    <div class="patient-name" style="color:#ff9800;">
+                        <i class="fa fa-clock"></i> No active consultation
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Waiting Queue -->
+            <div class="patient-list">
+                {% if waiting_list %}
+                {% for apt in waiting_list %}
+                <div class="patient-item">
+                    <div class="queue-number">#{{ apt.queue_number }}</div>
+                    <div class="patient-info">
+                        <div class="name">{{ apt.patient_name }}</div>
+                        <div class="time">
+                            <i class="fa fa-clock"></i> {{ apt.time }}
+                            {% if apt.wait_time %}
+                            <span class="wait-time ms-2">
+                                <i class="fa fa-hourglass"></i> {{ apt.wait_time }}
+                            </span>
+                            {% endif %}
+                        </div>
+                        {% if apt.patient_contact %}
+                        <div class="contact">
+                            <i class="fa fa-phone"></i> {{ apt.patient_contact }}
+                        </div>
+                        {% endif %}
+                    </div>
+                    <div class="text-end">
+                        {% if apt.priority == 'HIGH' %}
+                        <span class="status-badge priority-high">HIGH</span>
+                        {% elif apt.priority == 'MEDIUM' %}
+                        <span class="status-badge priority-medium">MEDIUM</span>
+                        {% else %}
+                        <span class="status-badge priority-low">LOW</span>
+                        {% endif %}
+                        
+                        {% if apt.status == 'Booked' %}
+                        <span class="status-badge badge-booked ms-1">Booked</span>
+                        {% elif apt.status == 'Waiting' %}
+                        <span class="status-badge badge-waiting ms-1">Waiting</span>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+                {% else %}
+                <div class="no-patients">
+                    <i class="fa fa-check-circle text-success me-1"></i> No waiting patients. All clear!
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Appointment Progress Bar for this Doctor -->
+            {% set doc_total = appointments|length %}
+            {% set doc_completed = appointments|selectattr("status", "equalto", "Completed")|list|length %}
+            {% if doc_total > 0 %}
+            <div class="px-3 pb-3">
+                <div class="d-flex justify-content-between small text-muted mb-1">
+                    <span>Queue Progress</span>
+                    <span>{{ doc_completed }}/{{ doc_total }} completed</span>
+                </div>
+                <div class="progress-bar-custom">
+                    {% set doc_completed_count = appointments|selectattr("status", "equalto", "Completed")|list|length %}
+                    {% set doc_waiting_count = appointments|selectattr("status", "equalto", "Waiting")|list|length %}
+                    {% set doc_consult_count = appointments|selectattr("status", "equalto", "In-Consultation")|list|length %}
+                    {% set doc_booked_count = appointments|selectattr("status", "equalto", "Booked")|list|length %}
+                    <div class="d-flex" style="height:100%;border-radius:10px;overflow:hidden;">
+                        {% if doc_completed_count > 0 %}
+                        <div style="width:{{ (doc_completed_count/doc_total*100)|round }}%;background:#4caf50;height:8px;" title="Completed: {{ doc_completed_count }}"></div>
+                        {% endif %}
+                        {% if doc_consult_count > 0 %}
+                        <div style="width:{{ (doc_consult_count/doc_total*100)|round }}%;background:#2196f3;height:8px;" title="In Consultation: {{ doc_consult_count }}"></div>
+                        {% endif %}
+                        {% if doc_waiting_count > 0 %}
+                        <div style="width:{{ (doc_waiting_count/doc_total*100)|round }}%;background:#ff9800;height:8px;" title="Waiting: {{ doc_waiting_count }}"></div>
+                        {% endif %}
+                        {% if doc_booked_count > 0 %}
+                        <div style="width:{{ (doc_booked_count/doc_total*100)|round }}%;background:#9e9e9e;height:8px;" title="Booked: {{ doc_booked_count }}"></div>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="d-flex gap-3 mt-1 small text-muted">
+                    <span><span style="color:#4caf50;">●</span> {{ doc_completed_count }} Done</span>
+                    <span><span style="color:#2196f3;">●</span> {{ doc_consult_count }} Active</span>
+                    <span><span style="color:#ff9800;">●</span> {{ doc_waiting_count }} Waiting</span>
+                    <span><span style="color:#9e9e9e;">●</span> {{ doc_booked_count }} Booked</span>
+                </div>
             </div>
             {% endif %}
         </div>
-
-        <!-- Appointment Progress Bar for this Doctor -->
-        {% set doc_total = appointments|length %}
-        {% set doc_completed = appointments|selectattr("status", "equalto", "Completed")|list|length %}
-        {% if doc_total > 0 %}
-        <div class="px-3 pb-3">
-            <div class="d-flex justify-content-between small text-muted mb-1">
-                <span>Queue Progress</span>
-                <span>{{ doc_completed }}/{{ doc_total }} completed</span>
-            </div>
-            <div class="progress-bar-custom">
-                {% set doc_completed_count = appointments|selectattr("status", "equalto", "Completed")|list|length %}
-                {% set doc_waiting_count = appointments|selectattr("status", "equalto", "Waiting")|list|length %}
-                {% set doc_consult_count = appointments|selectattr("status", "equalto", "In-Consultation")|list|length %}
-                {% set doc_booked_count = appointments|selectattr("status", "equalto", "Booked")|list|length %}
-                <div class="d-flex" style="height:100%;border-radius:10px;overflow:hidden;">
-                    {% if doc_completed_count > 0 %}
-                    <div style="width:{{ (doc_completed_count/doc_total*100)|round }}%;background:#4caf50;height:8px;" title="Completed: {{ doc_completed_count }}"></div>
-                    {% endif %}
-                    {% if doc_consult_count > 0 %}
-                    <div style="width:{{ (doc_consult_count/doc_total*100)|round }}%;background:#2196f3;height:8px;" title="In Consultation: {{ doc_consult_count }}"></div>
-                    {% endif %}
-                    {% if doc_waiting_count > 0 %}
-                    <div style="width:{{ (doc_waiting_count/doc_total*100)|round }}%;background:#ff9800;height:8px;" title="Waiting: {{ doc_waiting_count }}"></div>
-                    {% endif %}
-                    {% if doc_booked_count > 0 %}
-                    <div style="width:{{ (doc_booked_count/doc_total*100)|round }}%;background:#9e9e9e;height:8px;" title="Booked: {{ doc_booked_count }}"></div>
-                    {% endif %}
-                </div>
-            </div>
-            <div class="d-flex gap-3 mt-1 small text-muted">
-                <span><span style="color:#4caf50;">●</span> {{ doc_completed_count }} Done</span>
-                <span><span style="color:#2196f3;">●</span> {{ doc_consult_count }} Active</span>
-                <span><span style="color:#ff9800;">●</span> {{ doc_waiting_count }} Waiting</span>
-                <span><span style="color:#9e9e9e;">●</span> {{ doc_booked_count }} Booked</span>
-            </div>
-        </div>
         {% endif %}
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <i class="fa fa-inbox"></i>
+        <h4>No Active Queues</h4>
+        <p>There are no active queues at the moment. Once patients start arriving, their queue status will appear here.</p>
     </div>
     {% endif %}
-    {% endfor %}
 </div>
-{% else %}
-<div class="empty-state">
-    <i class="fa fa-inbox"></i>
-    <h4>No Active Queues</h4>
-    <p>There are no active queues at the moment. Once patients start arriving, their queue status will appear here.</p>
-</div>
-{% endif %}
 
 <div class="last-updated">
     <span class="live-indicator"></span>
@@ -691,30 +699,61 @@
 
 <script>
 // =========================
-// FILTER QUEUE BY CLINIC / DOCTOR
+// FILTER QUEUE BY SELECTED CLINIC
 // =========================
-function filterQueue() {
-    var clinicVal = document.getElementById('clinicFilter').value;
-    var doctorVal = document.getElementById('doctorFilter').value;
+function filterByClinic() {
+    var clinicId = document.getElementById('clinicSelect').value;
     var cards = document.querySelectorAll('.doctor-card');
+    var emptyState = document.getElementById('emptyQueueState');
+    var queueSection = document.getElementById('clinicQueueSection');
+    var clinicNameDisplay = document.getElementById('clinicNameDisplay');
     
+    if (!clinicId) {
+        // No clinic selected - show empty state, hide queue section
+        emptyState.style.display = '';
+        queueSection.style.display = 'none';
+        localStorage.removeItem('selectedClinicId');
+        return;
+    }
+    
+    // Save selection to localStorage so it persists after auto-refresh
+    localStorage.setItem('selectedClinicId', clinicId);
+    
+    // Find the selected clinic name from the dropdown
+    var select = document.getElementById('clinicSelect');
+    var selectedText = select.options[select.selectedIndex].text;
+    clinicNameDisplay.textContent = selectedText;
+    
+    // Show queue section, hide empty state
+    emptyState.style.display = 'none';
+    queueSection.style.display = '';
+    
+    // Filter doctor cards to only show those belonging to the selected clinic
     cards.forEach(function(card) {
-        var show = true;
-        
-        if (clinicVal !== 'all') {
-            if (!card.classList.contains(clinicVal)) {
-                show = false;
-            }
+        var cardClinicId = card.getAttribute('data-clinic-id');
+        if (cardClinicId === clinicId) {
+            card.style.display = '';
+        } else {
+            card.style.display = 'none';
         }
-        
-        if (doctorVal !== 'all') {
-            if (!card.classList.contains(doctorVal)) {
-                show = false;
-            }
-        }
-        
-        card.style.display = show ? '' : 'none';
     });
+}
+
+// =========================
+// RESTORE SELECTED CLINIC AFTER AUTO-REFRESH
+// =========================
+function restoreSelectedClinic() {
+    var savedClinicId = localStorage.getItem('selectedClinicId');
+    if (savedClinicId) {
+        var select = document.getElementById('clinicSelect');
+        for (var i = 0; i < select.options.length; i++) {
+            if (select.options[i].value === savedClinicId) {
+                select.value = savedClinicId;
+                filterByClinic();
+                break;
+            }
+        }
+    }
 }
 
 // =========================
@@ -733,6 +772,9 @@ function updateCountdown() {
 
 setInterval(updateCountdown, 1000);
 updateCountdown();
+
+// Restore previously selected clinic after page load / auto-refresh
+window.addEventListener('load', restoreSelectedClinic);
 
 setInterval(function() {
     console.log('Refreshing queue monitoring data...');
