@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Health Announcements - MEDiAI</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        body{background:#f4f7fb;font-family:Arial,sans-serif;}
+        .header{background:#1f3c88;color:white;padding:20px;}
+        .card-box{background:white;border-radius:15px;padding:20px;box-shadow:0 4px 10px rgba(0,0,0,0.08);}
+        .table-container{background:white;padding:20px;border-radius:15px;box-shadow:0 4px 10px rgba(0,0,0,0.08);}
+        .section-title{font-weight:bold;margin-bottom:15px;}
+        .badge-category{font-size:11px;padding:4px 10px;border-radius:20px;font-weight:600;}
+        .msg-preview{max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#666;font-size:13px;}
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <div class="container d-flex justify-content-between align-items-center">
+        <div>
+            <h2 class="mb-1"><i class="fa fa-bullhorn"></i> Health Announcements</h2>
+            <p class="mb-0">Manage clinic announcements visible to patients</p>
+        </div>
+        <div>
+            <a href="/clinic_dashboard" class="btn btn-outline-light btn-sm me-2">
+                <i class="fa fa-arrow-left"></i> Dashboard
+            </a>
+            <a href="/logout" class="btn btn-outline-light btn-sm">Logout</a>
+        </div>
+    </div>
+</div>
+
+<div class="container mt-4">
+
+{% if mode == 'add' or mode == 'edit' %}
+    <!-- ========================= -->
+    <!-- ADD / EDIT FORM -->
+    <!-- ========================= -->
+    <div class="card-box mb-4">
+        <h5 class="section-title">
+            {% if mode == 'add' %}<i class="fa fa-plus-circle text-primary"></i> Create New Announcement
+            {% else %}<i class="fa fa-edit text-primary"></i> Edit Announcement{% endif %}
+        </h5>
+        <hr>
+        <form method="POST">
+            <div class="row g-3">
+                <div class="col-md-8">
+                    <label class="form-label fw-bold">Title</label>
+                    <input type="text" name="title" class="form-control" required
+                           value="{{ form_data.title if form_data else (announcement.title if announcement else '') }}">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label fw-bold">Category</label>
+                    <select name="category" class="form-select" required>
+                        <option value="Clinic Notice" {% if form_data %}{% if form_data.category == 'Clinic Notice' %}selected{% endif %}{% elif announcement and announcement.category == 'Clinic Notice' %}selected{% endif %}>Clinic Notice</option>
+                        <option value="Health Advisory" {% if form_data %}{% if form_data.category == 'Health Advisory' %}selected{% endif %}{% elif announcement and announcement.category == 'Health Advisory' %}selected{% endif %}>Health Advisory</option>
+                        <option value="Vaccination" {% if form_data %}{% if form_data.category == 'Vaccination' %}selected{% endif %}{% elif announcement and announcement.category == 'Vaccination' %}selected{% endif %}>Vaccination</option>
+                        <option value="Holiday Notice" {% if form_data %}{% if form_data.category == 'Holiday Notice' %}selected{% endif %}{% elif announcement and announcement.category == 'Holiday Notice' %}selected{% endif %}>Holiday Notice</option>
+                        <option value="System Notice" {% if form_data %}{% if form_data.category == 'System Notice' %}selected{% endif %}{% elif announcement and announcement.category == 'System Notice' %}selected{% endif %}>System Notice</option>
+                        <option value="General Announcement" {% if form_data %}{% if form_data.category == 'General Announcement' %}selected{% endif %}{% elif announcement and announcement.category == 'General Announcement' %}selected{% endif %}>General Announcement</option>
+                    </select>
+                </div>
+                <div class="col-12">
+                    <label class="form-label fw-bold">Message</label>
+                    <textarea name="message" class="form-control" rows="4" required>{{ form_data.message if form_data else (announcement.message if announcement else '') }}</textarea>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label fw-bold">Start Date</label>
+                    <input type="date" name="start_date" class="form-control" required
+                           value="{{ form_data.start_date if form_data else (announcement.start_date if announcement else '') }}">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label fw-bold">Expiry Date</label>
+                    <input type="date" name="expiry_date" class="form-control" required
+                           value="{{ form_data.expiry_date if form_data else (announcement.expiry_date if announcement else '') }}">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label fw-bold">Status</label>
+                    <select name="status" class="form-select">
+                        <option value="Active" {% if form_data %}{% if form_data.status == 'Active' %}selected{% endif %}{% elif announcement and announcement.status == 'Active' %}selected{% endif %}>Active</option>
+                        <option value="Inactive" {% if form_data %}{% if form_data.status == 'Inactive' %}selected{% endif %}{% elif announcement and announcement.status == 'Inactive' %}selected{% endif %}>Inactive</option>
+                    </select>
+                </div>
+                <div class="col-12">
+                    <hr>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fa fa-save"></i> {% if mode == 'add' %}Create Announcement{% else %}Update Announcement{% endif %}
+                    </button>
+                    <a href="/clinic_announcements" class="btn btn-secondary">Cancel</a>
+                </div>
+            </div>
+        </form>
+    </div>
+
+{% else %}
+    <!-- ========================= -->
+    <!-- LIST VIEW -->
+    <!-- ========================= -->
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h5 class="mb-0"><i class="fa fa-list text-primary"></i> All Announcements</h5>
+        <a href="/clinic_announcements/add" class="btn btn-primary btn-sm">
+            <i class="fa fa-plus"></i> Create New Announcement
+        </a>
+    </div>
+
+    <div class="table-container">
+        {% if announcements %}
+        <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th>Title</th>
+                        <th>Category</th>
+                        <th>Message</th>
+                        <th>Start Date</th>
+                        <th>Expiry Date</th>
+                        <th>Status</th>
+                        <th>Created</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for ann in announcements %}
+                    <tr>
+                        <td><strong>{{ ann.title }}</strong></td>
+                        <td>
+                            {% if ann.category == 'Clinic Notice' %}
+                                <span class="badge-custom badge bg-primary">Clinic Notice</span>
+                            {% elif ann.category == 'Health Advisory' %}
+                                <span class="badge-custom badge bg-success">Health Advisory</span>
+                            {% elif ann.category == 'Vaccination' %}
+                                <span class="badge-custom badge bg-info text-dark">Vaccination</span>
+                            {% elif ann.category == 'Holiday Notice' %}
+                                <span class="badge-custom badge bg-warning text-dark">Holiday Notice</span>
+                            {% elif ann.category == 'System Notice' %}
+                                <span class="badge-custom badge bg-secondary">System Notice</span>
+                            {% else %}
+                                <span class="badge-custom badge bg-dark">General</span>
+                            {% endif %}
+                        </td>
+                        <td><div class="msg-preview">{{ ann.message }}</div></td>
+                        <td><small>{{ ann.start_date }}</small></td>
+                        <td><small>{{ ann.expiry_date }}</small></td>
+                        <td>
+                            {% if ann.status == 'Active' %}
+                            <form method="POST" action="/clinic_announcements/toggle/{{ ann.id }}" style="display:inline;">
+                                <button type="submit" class="btn btn-sm btn-success">Active</button>
+                            </form>
+                            {% else %}
+                            <form method="POST" action="/clinic_announcements/toggle/{{ ann.id }}" style="display:inline;">
+                                <button type="submit" class="btn btn-sm btn-outline-secondary">Inactive</button>
+                            </form>
+                            {% endif %}
+                        </td>
+                        <td><small class="text-muted">{{ ann.created_at.strftime('%d %b %Y') if ann.created_at else '' }}</small></td>
+                        <td>
+                            <a href="/clinic_announcements/edit/{{ ann.id }}" class="btn btn-sm btn-outline-primary" title="Edit">
+                                <i class="fa fa-edit"></i>
+                            </a>
+                            <form method="POST" action="/clinic_announcements/toggle/{{ ann.id }}" style="display:inline;">
+                                <button type="submit" class="btn btn-sm btn-outline-warning" title="Toggle Active/Inactive">
+                                    <i class="fa fa-toggle-on"></i>
+                                </button>
+                            </form>
+                            <form method="POST" action="/clinic_announcements/delete/{{ ann.id }}" style="display:inline;" onsubmit="return confirm('Delete this announcement?');">
+                                <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete">
+                                    <i class="fa fa-trash"></i>
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="text-center py-5 text-muted">
+            <i class="fa fa-bullhorn fa-3x mb-3" style="color:#ccc;"></i>
+            <h5>No announcements yet</h5>
+            <p>Create your first health announcement to communicate with patients.</p>
+            <a href="/clinic_announcements/add" class="btn btn-primary">
+                <i class="fa fa-plus"></i> Create First Announcement
+            </a>
+        </div>
+        {% endif %}
+    </div>
+{% endif %}
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

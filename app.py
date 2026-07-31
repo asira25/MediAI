@@ -881,6 +881,15 @@ def patient_dashboard():
 
         prescription_summary = cursor.fetchall()
 
+    # Query the database for every dashboard request; do not retain
+    # announcement data in the session or another cache.
+    health_announcements = get_all_active_announcements(cursor)
+
+    # Keep the dashboard's Book Now action aligned with the existing booking
+    # validation.  These are active notices for today only; no session state is
+    # used, so availability is recalculated on every dashboard request.
+    booking_unavailable_reason = get_booking_unavailability_reason(cursor)
+
     conn.close()
 
     return render_template(
@@ -901,9 +910,270 @@ def patient_dashboard():
 
         recent_consultation=recent_consultation,
 
-        prescription_summary=prescription_summary
+        prescription_summary=prescription_summary,
+
+        health_announcements=health_announcements,
+
+        booking_unavailable_reason=booking_unavailable_reason
 
     )
+
+
+# =========================
+# HEALTH ANNOUNCEMENTS (Clinic Admin)
+# =========================
+@app.route('/clinic_announcements')
+def clinic_announcements():
+
+    if 'clinic_admin_id' not in session:
+        return redirect(url_for('clinic_login'))
+
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+
+    cursor.execute("""
+        SELECT *
+        FROM health_announcements
+        ORDER BY created_at DESC
+    """)
+    announcements = cursor.fetchall()
+
+    conn.close()
+
+    return render_template(
+        'clinic_announcements.html',
+        announcements=announcements
+    )
+
+
+@app.route('/clinic_announcements/add', methods=['GET', 'POST'])
+def clinic_announcements_add():
+
+    if 'clinic_admin_id' not in session:
+        return redirect(url_for('clinic_login'))
+
+    if request.method == 'POST':
+        title = request.form['title']
+        category = request.form['category']
+        message = request.form['message']
+        start_date = request.form['start_date']
+        expiry_date = request.form['expiry_date']
+        status = request.form.get('status', 'Active')
+
+        # Validate that expiry date is not before start date
+        if expiry_date < start_date:
+            flash("Expiry date must be on or after the start date.", "danger")
+            form_data = {
+                'title': title,
+                'category': category,
+                'message': message,
+                'start_date': start_date,
+                'expiry_date': expiry_date,
+                'status': status
+            }
+            return render_template(
+                'clinic_announcements.html',
+                mode='add',
+                form_data=form_data
+            )
+
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+
+        cursor.execute("""
+            INSERT INTO health_announcements
+            (title, category, message, start_date, expiry_date, status)
+            VALUES (%s, %s, %s, %s, %s, %s)
+        """, (title, category, message, start_date, expiry_date, status))
+
+        conn.commit()
+        conn.close()
+
+        flash("Announcement created successfully.", "success")
+        return redirect(url_for('clinic_announcements'))
+
+    return render_template('clinic_announcements.html', mode='add')
+
+
+@app.route('/clinic_announcements/edit/<int:id>', methods=['GET', 'POST'])
+def clinic_announcements_edit(id):
+
+    if 'clinic_admin_id' not in session:
+        return redirect(url_for('clinic_login'))
+
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+
+    if request.method == 'POST':
+        title = request.form['title']
+        category = request.form['category']
+        message = request.form['message']
+        start_date = request.form['start_date']
+        expiry_date = request.form['expiry_date']
+        status = request.form.get('status', 'Active')
+
+        # Validate that expiry date is not before start date
+        if expiry_date < start_date:
+            flash("Expiry date must be on or after the start date.", "danger")
+            form_data = {
+                'title': title,
+                'category': category,
+                'message': message,
+                'start_date': start_date,
+                'expiry_date': expiry_date,
+                'status': status
+            }
+            # Re-fetch the announcement to ensure it still exists, then re-render with form_data
+            cursor.execute("""
+                SELECT * FROM health_announcements WHERE id=%s
+            """, (id,))
+            announcement = cursor.fetchone()
+            conn.close()
+            if not announcement:
+                return redirect(url_for('clinic_announcements'))
+            return render_template(
+                'clinic_announcements.html',
+                mode='edit',
+                announcement=announcement,
+                form_data=form_data
+            )
+
+        cursor.execute("""
+            UPDATE health_announcements
+            SET title=%s, category=%s, message=%s,
+                start_date=%s, expiry_date=%s, status=%s
+            WHERE id=%s
+        """, (title, category, message, start_date, expiry_date, status, id))
+
+        conn.commit()
+        conn.close()
+
+        flash("Announcement updated successfully.", "success")
+        return redirect(url_for('clinic_announcements'))
+
+    cursor.execute("""
+        SELECT * FROM health_announcements WHERE id=%s
+    """, (id,))
+    announcement = cursor.fetchone()
+    conn.close()
+
+    if not announcement:
+        return redirect(url_for('clinic_announcements'))
+
+    return render_template(
+        'clinic_announcements.html',
+        mode='edit',
+        announcement=announcement
+    )
+
+
+@app.route('/clinic_announcements/delete/<int:id>', methods=['POST'])
+def clinic_announcements_delete(id):
+
+    if 'clinic_admin_id' not in session:
+        return redirect(url_for('clinic_login'))
+
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+
+    try:
+        # Announcements use a hard delete.  A successful commit makes the row
+        # unavailable to the active-only patient and booking queries.
+        cursor.execute(
+            "DELETE FROM health_announcements WHERE id=%s",
+            (id,)
+        )
+        rows_affected = cursor.rowcount
+        conn.commit()
+
+        if rows_affected == 0:
+            flash("Failed to delete announcement. Please try again.", "danger")
+        else:
+            flash("Announcement deleted successfully.", "success")
+
+    except Exception as e:
+        print(f"[ERROR] Failed to delete announcement id={id}: {str(e)}")
+        conn.rollback()
+        flash("Failed to delete announcement. Please try again.", "danger")
+    finally:
+        cursor.close()
+        conn.close()
+
+    return redirect(url_for('clinic_announcements'))
+
+
+@app.route('/clinic_announcements/toggle/<int:id>', methods=['POST'])
+def clinic_announcements_toggle(id):
+
+    if 'clinic_admin_id' not in session:
+        return redirect(url_for('clinic_login'))
+
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+
+    cursor.execute("""
+        SELECT status FROM health_announcements WHERE id=%s
+    """, (id,))
+    ann = cursor.fetchone()
+
+    if ann:
+        new_status = 'Inactive' if ann['status'] == 'Active' else 'Active'
+        cursor.execute("""
+            UPDATE health_announcements SET status=%s WHERE id=%s
+        """, (new_status, id))
+        conn.commit()
+
+    conn.close()
+
+    return redirect(url_for('clinic_announcements'))
+
+
+# =========================
+# ANNOUNCEMENT HELPER
+# =========================
+def get_booking_announcements(cursor):
+    """Fetch active Holiday Notice and System Notice announcements for booking validation."""
+    cursor.execute("""
+        SELECT *
+        FROM health_announcements
+        WHERE status='Active'
+          AND start_date <= CURDATE()
+          AND expiry_date >= CURDATE()
+          AND category IN ('Holiday Notice', 'System Notice')
+        ORDER BY created_at DESC
+    """)
+    return cursor.fetchall()
+
+
+def get_booking_unavailability_reason(cursor):
+    """Return the dashboard/booking guard message for an active blocking notice."""
+    booking_announcements = get_booking_announcements(cursor)
+
+    # A Holiday Notice takes precedence when both types are active.
+    if any(ann['category'] == 'Holiday Notice' for ann in booking_announcements):
+        return "Booking is temporarily unavailable because the clinic is closed today."
+
+    for ann in booking_announcements:
+        if ann['category'] == 'System Notice':
+            message = ann['message'].lower()
+            if any(keyword in message for keyword in
+                   ['maintenance', 'unavailable', 'down', 'temporary']):
+                return "Booking is temporarily unavailable due to scheduled system maintenance."
+
+    return None
+
+
+def get_all_active_announcements(cursor):
+    """Fetch all active announcements within date range."""
+    cursor.execute("""
+        SELECT *
+        FROM health_announcements
+        WHERE status='Active'
+          AND start_date <= CURDATE()
+          AND expiry_date >= CURDATE()
+        ORDER BY created_at DESC
+    """)
+    return cursor.fetchall()
 
 
 # =========================
@@ -987,6 +1257,15 @@ def booking():
     conn = get_db_connection()
 
     cursor = conn.cursor(dictionary=True)
+
+    # Safety guard for a manually entered /booking URL.  The dashboard is the
+    # only booking-availability UI; redirect there.  The dashboard already
+    # displays the booking_unavailable_reason inline, so no flash is needed
+    # here to avoid showing two duplicate warning messages.
+    booking_unavailable_reason = get_booking_unavailability_reason(cursor)
+    if booking_unavailable_reason:
+        conn.close()
+        return redirect(url_for('patient_dashboard'))
 
     if location:
 
