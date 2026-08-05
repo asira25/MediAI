@@ -61,7 +61,9 @@ Open the local address printed by Flask in your browser.
 
 ## Database
 
-`database.sql` contains the MediAI schema only. It intentionally excludes local data such as patient profiles, login records, appointments, medical details, prescriptions, and notifications.
+`database.sql` contains the MediAI schema and fictional demo records so a newly cloned copy is usable immediately. It excludes local patient profiles, login records, appointments, medical details, prescriptions, and notifications.
+
+The included demo accounts use simple development-only passwords. Replace them before deploying the application.
 
 ## Security note
 
