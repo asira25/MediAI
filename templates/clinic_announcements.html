@@ -152,7 +152,9 @@
                         <td><small>{{ ann.start_date }}</small></td>
                         <td><small>{{ ann.expiry_date }}</small></td>
                         <td>
-                            {% if ann.status == 'Active' %}
+                            {% if ann.is_expired %}
+                            <button type="button" class="btn btn-sm btn-outline-secondary" disabled title="This announcement has expired">Expired</button>
+                            {% elif ann.status == 'Active' %}
                             <form method="POST" action="/clinic_announcements/toggle/{{ ann.id }}" style="display:inline;">
                                 <button type="submit" class="btn btn-sm btn-success">Active</button>
                             </form>
@@ -167,11 +169,17 @@
                             <a href="/clinic_announcements/edit/{{ ann.id }}" class="btn btn-sm btn-outline-primary" title="Edit">
                                 <i class="fa fa-edit"></i>
                             </a>
+                            {% if ann.is_expired %}
+                            <button type="button" class="btn btn-sm btn-outline-secondary" title="Expired announcements cannot be activated" disabled>
+                                <i class="fa fa-toggle-off"></i>
+                            </button>
+                            {% else %}
                             <form method="POST" action="/clinic_announcements/toggle/{{ ann.id }}" style="display:inline;">
                                 <button type="submit" class="btn btn-sm btn-outline-warning" title="Toggle Active/Inactive">
                                     <i class="fa fa-toggle-on"></i>
                                 </button>
                             </form>
+                            {% endif %}
                             <form method="POST" action="/clinic_announcements/delete/{{ ann.id }}" style="display:inline;" onsubmit="return confirm('Delete this announcement?');">
                                 <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete">
                                     <i class="fa fa-trash"></i>

@@ -4,7 +4,7 @@ import hashlib
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify, flash, send_file
 from flask_cors import CORS
 from config import get_db_connection
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 import urllib.parse
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
@@ -931,12 +931,27 @@ def clinic_announcements():
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
 
+    # An expired announcement must never remain active.  This also corrects
+    # records that expired while no admin was using this page.
+    cursor.execute("""
+        UPDATE health_announcements
+        SET status='Inactive'
+        WHERE status='Active' AND expiry_date < CURDATE()
+    """)
+    conn.commit()
+
     cursor.execute("""
         SELECT *
         FROM health_announcements
         ORDER BY created_at DESC
     """)
     announcements = cursor.fetchall()
+
+    for announcement in announcements:
+        announcement['is_expired'] = (
+            announcement['expiry_date'] is not None
+            and announcement['expiry_date'] < date.today()
+        )
 
     conn.close()
 
@@ -976,6 +991,12 @@ def clinic_announcements_add():
                 mode='add',
                 form_data=form_data
             )
+
+        # Expired announcements are retained for admin records but cannot be
+        # created as active announcements.
+        if status == 'Active' and expiry_date < date.today().isoformat():
+            status = 'Inactive'
+            flash("Expired announcements are saved as inactive.", "warning")
 
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
@@ -1037,6 +1058,12 @@ def clinic_announcements_edit(id):
                 announcement=announcement,
                 form_data=form_data
             )
+
+        # Do not allow an already expired date to be saved with an active
+        # status.  Changing the expiry date to today or later may be active.
+        if status == 'Active' and expiry_date < date.today().isoformat():
+            status = 'Inactive'
+            flash("Expired announcements are saved as inactive.", "warning")
 
         cursor.execute("""
             UPDATE health_announcements
@@ -1112,11 +1139,22 @@ def clinic_announcements_toggle(id):
     cursor = conn.cursor(dictionary=True)
 
     cursor.execute("""
-        SELECT status FROM health_announcements WHERE id=%s
+        SELECT status, expiry_date FROM health_announcements WHERE id=%s
     """, (id,))
     ann = cursor.fetchone()
 
     if ann:
+        if ann['expiry_date'] < date.today():
+            # Ensure an old active record is corrected even if this endpoint
+            # is called directly instead of through the admin page.
+            cursor.execute("""
+                UPDATE health_announcements SET status='Inactive' WHERE id=%s
+            """, (id,))
+            conn.commit()
+            flash("Expired announcements cannot be activated.", "warning")
+            conn.close()
+            return redirect(url_for('clinic_announcements'))
+
         new_status = 'Inactive' if ann['status'] == 'Active' else 'Active'
         cursor.execute("""
             UPDATE health_announcements SET status=%s WHERE id=%s
