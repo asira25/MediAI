@@ -4411,7 +4411,7 @@ def complete_consultation():
         return "Diagnosis is required"
 
     conn = get_db_connection()
-    cursor = conn.cursor()
+    cursor = conn.cursor(dictionary=True)
 
     # =========================
     # SAVE CONSULTATION
