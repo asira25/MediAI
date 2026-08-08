@@ -1,5 +1,6 @@
 import email
 import hashlib
+import os
 
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify, flash, send_file
 from flask_cors import CORS
@@ -22,7 +23,7 @@ from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_RIGHT
 
 app = Flask(__name__)
 CORS(app)
-app.secret_key = "mediai_secret_key"
+app.secret_key = os.getenv("MEDIAI_SECRET_KEY", "mediai_secret_key")
 
 # =========================
 # BACKGROUND SCHEDULER
@@ -33,7 +34,13 @@ scheduler = BackgroundScheduler()
 scheduler.start()
 
 # Shut down the scheduler when exiting the app
-atexit.register(lambda: scheduler.shutdown())
+def shutdown_scheduler():
+    """Stop the scheduler once, without raising during an already-stopped exit."""
+    if scheduler.running:
+        scheduler.shutdown()
+
+
+atexit.register(shutdown_scheduler)
 
 
 # =========================
@@ -50,7 +57,8 @@ def get_effective_status(appointment):
     - Booked → Waiting: Exactly at appointment time
     - Booked → Missed: 15 minutes after appointment time
     - Waiting → Missed: 45 minutes after appointment time (no-show)
-    - In-Consultation, Completed, Cancelled, Missed: Preserved as-is
+    - In-Consultation → Missed: When its appointment date has passed
+    - Completed, Cancelled, Missed: Preserved as-is
     
     Args:
         appointment (dict): Appointment record from database
@@ -60,9 +68,20 @@ def get_effective_status(appointment):
     """
     db_status = appointment['status']
     
-    # Final states and manually controlled states are never overridden
-    if db_status in ['Completed', 'Cancelled', 'Missed', 'In-Consultation']:
+    # Final states always take precedence over automatic date-based rules.
+    # A consultation is only completed by complete_consultation(), which writes
+    # both the consultation record and this final appointment status.
+    if db_status in ['Completed', 'Cancelled', 'Missed']:
         return db_status
+
+    appointment_date = datetime.strptime(str(appointment['date']), "%Y-%m-%d").date()
+
+    # An unfinished consultation must not remain active after its scheduled day.
+    # This also protects every caller that uses this central status calculation.
+    if appointment_date < datetime.now().date() and db_status in [
+        'Booked', 'Waiting', 'In-Consultation'
+    ]:
+        return 'Missed'
     
     current_datetime = datetime.now()
     appointment_datetime = datetime.strptime(
@@ -750,7 +769,8 @@ def patient_dashboard():
             'Waiting',
             'In-Consultation',
             'Completed',
-            'Missed'
+            'Missed',
+            'Cancelled'
         )
 
         ORDER BY date DESC,
@@ -766,8 +786,7 @@ def patient_dashboard():
     
     # Apply time-based status override
     for apt in appointments:
-        if apt['status'] not in ['Completed', 'Cancelled', 'Missed', 'In-Consultation']:
-            apt['status'] = get_effective_status(apt)
+        apt['status'] = get_effective_status(apt)
 
     # =========================
     # ACTIVE APPOINTMENT
@@ -1810,6 +1829,10 @@ def appointment_slot():
 
     clinic_info = cursor.fetchone()
 
+    if not clinic_info:
+        conn.close()
+        return "Selected clinic not found."
+
     current_time = timedelta(
 
         hours=datetime.now().hour,
@@ -1822,6 +1845,10 @@ def appointment_slot():
     clinic_is_closed = False
 
     if clinic_info:
+
+        if not clinic_info['opening_time'] or not clinic_info['closing_time']:
+            conn.close()
+            return "Booking unavailable. This clinic has no operating hours configured."
 
         # =========================
         # MANUAL CLINIC STATUS
@@ -1879,6 +1906,16 @@ def appointment_slot():
 
     )
 
+    try:
+        selected_date_obj = datetime.strptime(selected_date, "%Y-%m-%d").date()
+    except ValueError:
+        conn.close()
+        return "Invalid appointment date."
+
+    if selected_date_obj < datetime.now().date():
+        conn.close()
+        return "Appointment date cannot be in the past."
+
     # Keep recommendation date synchronized with the selected date
     recommended_date = selected_date
 
@@ -1896,7 +1933,8 @@ def appointment_slot():
 
             SELECT
                 availability,
-                status
+                status,
+                clinic_id
 
             FROM doctors
 
@@ -1942,13 +1980,13 @@ def appointment_slot():
 
             """
 
+        if str(selected_doctor['clinic_id']) != str(clinic_info['id']):
+
+            conn.close()
+
+            return "Selected doctor does not belong to this clinic."
 
 
-
-
-    conn = get_db_connection()
-
-    cursor = conn.cursor(dictionary=True)
 
     cursor.execute(
 
@@ -2713,33 +2751,27 @@ def confirm_booking():
 
     triage_id = session.get('triage_id')
 
-    doctor_id = request.form['doctor_id']
+    doctor_id = request.form.get('doctor_id', '').strip()
+    clinic = request.form.get('clinic', '').strip()
+    selected_date = request.form.get('selected_date', '').strip()
+    selected_time = request.form.get('selected_time', '').strip()
 
-    doctor_name = request.form['doctor_name']
-
-    specialist = request.form['specialist']
-
-    clinic = request.form['clinic']
-
-    priority = request.form['priority']
-
-    urgency = request.form['urgency']
-
-    selected_date = request.form['selected_date']
-
-    selected_time = request.form['selected_time']
+    if not all([triage_id, doctor_id, clinic, selected_date, selected_time]):
+        flash("Please complete the symptom assessment and select an appointment slot.", "danger")
+        return redirect(url_for("booking"))
 
     # =========================
     # VALIDATE APPOINTMENT TIME
     # =========================
 
-    appointment_datetime = datetime.strptime(
-
-        f"{selected_date} {selected_time}",
-
-        "%Y-%m-%d %H:%M"
-
-    )
+    try:
+        appointment_datetime = datetime.strptime(
+            f"{selected_date} {selected_time}",
+            "%Y-%m-%d %H:%M"
+        )
+    except ValueError:
+        flash("Please select a valid appointment date and time.", "danger")
+        return redirect(url_for("booking"))
 
     current_datetime = datetime.now()
 
@@ -2823,6 +2855,12 @@ def confirm_booking():
 
         return redirect(url_for("booking"))
 
+    booking_unavailable_reason = get_booking_unavailability_reason(cursor)
+    if booking_unavailable_reason:
+        conn.close()
+        flash(booking_unavailable_reason, "warning")
+        return redirect(url_for("booking"))
+
     # -------------------------
     # Manual clinic status
     # -------------------------
@@ -2855,6 +2893,18 @@ def confirm_booking():
 
         return redirect(url_for("booking"))
 
+    if (
+        not clinic_status['opening_time']
+        or not clinic_status['closing_time']
+        or selected_time not in generate_time_slots(
+            clinic_status['opening_time'],
+            clinic_status['closing_time']
+        )
+    ):
+        conn.close()
+        flash("Please select an available clinic operating-hour slot.", "danger")
+        return redirect(url_for("booking"))
+
 
 
     # =========================
@@ -2865,7 +2915,11 @@ def confirm_booking():
 
         SELECT
             status,
-            availability
+            availability,
+            name,
+            specialist,
+            clinic_id,
+            clinic_name
 
         FROM doctors
 
@@ -2922,6 +2976,31 @@ def confirm_booking():
         )
 
         return redirect(url_for("booking"))
+
+    if str(doctor_status['clinic_id']) != str(clinic_id):
+        conn.close()
+        flash("The selected doctor does not belong to this clinic.", "danger")
+        return redirect(url_for("booking"))
+
+    # Persist trusted database values rather than hidden form fields.
+    doctor_name = doctor_status['name']
+    specialist = doctor_status['specialist']
+    clinic = doctor_status['clinic_name']
+
+    cursor.execute("""
+        SELECT priority_level, urgency
+        FROM triage_results
+        WHERE id=%s AND patient_id=%s
+    """, (triage_id, patient_id))
+    triage_result = cursor.fetchone()
+
+    if not triage_result:
+        conn.close()
+        flash("Your symptom assessment is no longer available. Please assess your symptoms again.", "danger")
+        return redirect(url_for("triage"))
+
+    priority = triage_result['priority_level']
+    urgency = triage_result['urgency']
 
     # =========================
     # SMART QUEUE POSITION
@@ -3509,6 +3588,9 @@ def cancel_appointment(appointment_id):
 @app.route('/live_queue/<int:appointment_id>')
 def live_queue(appointment_id):
 
+    if 'patient_id' not in session:
+        return jsonify({'error': 'Not authenticated'}), 401
+
     conn = get_db_connection()
 
     cursor = conn.cursor(dictionary=True)
@@ -3525,10 +3607,12 @@ def live_queue(appointment_id):
         FROM appointments
 
         WHERE id=%s
+        AND patient_id=%s
 
     """, (
 
         appointment_id,
+        session['patient_id'],
 
     ))
 
@@ -3544,10 +3628,8 @@ def live_queue(appointment_id):
         conn.close()
 
         return jsonify({
-
             "error": "Appointment not found"
-
-        })
+        }), 404
 
     # =========================
     # CHECK HIGH + URGENT
@@ -3867,6 +3949,9 @@ def live_queue(appointment_id):
 @app.route('/live_queue_page')
 def live_queue_page():
 
+    if 'patient_id' not in session:
+        return redirect(url_for('patient_login'))
+
     appointment_id = request.args.get(
         'appointment_id'
     )
@@ -3885,10 +3970,12 @@ def live_queue_page():
         FROM appointments
 
         WHERE id=%s
+        AND patient_id=%s
 
     """, (
 
         appointment_id,
+        session['patient_id'],
 
     ))
 
@@ -3969,6 +4056,7 @@ def doctor_dashboard():
         ON a.patient_id = p.id
 
         WHERE a.doctor_id=%s
+        AND a.date=CURDATE()
         AND a.status='In-Consultation'
 
         LIMIT 1
@@ -4118,7 +4206,9 @@ def api_doctor_dashboard_data():
         FROM appointments a
         LEFT JOIN patients p ON a.patient_id = p.id
         LEFT JOIN triage_results t ON a.triage_id = t.id
-        WHERE a.doctor_id=%s AND a.status='In-Consultation'
+        WHERE a.doctor_id=%s
+        AND a.date=CURDATE()
+        AND a.status='In-Consultation'
         LIMIT 1
     """, (doctor_id,))
     now_serving = cursor.fetchone()
@@ -4328,17 +4418,41 @@ def doctor_consultation(appointment_id):
             url_for('doctor_dashboard')
         )
 
-    # Auto update status
+    effective_status = get_effective_status(appointment)
+    if effective_status != appointment['status']:
+        cursor.execute(
+            "UPDATE appointments SET status=%s WHERE id=%s",
+            (effective_status, appointment_id)
+        )
+        conn.commit()
+        appointment['status'] = effective_status
+
+    # A consultation may only be opened for this doctor's active appointment
+    # today.  This prevents an old, missed, cancelled, or completed record from
+    # being reopened as In-Consultation by visiting its URL.
+    if (
+        str(appointment['doctor_id']) != str(session['doctor_id'])
+        or str(appointment['date']) != datetime.now().strftime('%Y-%m-%d')
+        or appointment['status'] not in ('Waiting', 'In-Consultation')
+    ):
+        conn.close()
+        flash('This appointment is not available for consultation.')
+        return redirect(url_for('doctor_dashboard'))
+
+    # Start or resume a valid active consultation.
     cursor.execute("""
 
         UPDATE appointments
         SET status='In-Consultation'
         WHERE id=%s
-        AND status!='Completed'
+        AND doctor_id=%s
+        AND date=CURDATE()
+        AND status IN ('Waiting', 'In-Consultation')
 
-    """, (appointment_id,))
+    """, (appointment_id, session['doctor_id']))
 
     conn.commit()
+    appointment['status'] = 'In-Consultation'
 
     # Patient
     cursor.execute("""
@@ -4393,25 +4507,54 @@ def doctor_consultation(appointment_id):
 )
 def complete_consultation():
 
-    appointment_id = request.form[
-        'appointment_id'
-    ]
+    if 'doctor_id' not in session:
+        return redirect(url_for('doctor_login'))
 
-    diagnosis = request.form[
-        'diagnosis'
-    ]
+    appointment_id = request.form.get('appointment_id', '').strip()
+    diagnosis = request.form.get('diagnosis', '')
 
     remarks = request.form.get(
         'remarks',
         ''
     )
 
-    if diagnosis.strip() == '':
+    if not appointment_id or diagnosis.strip() == '':
 
         return "Diagnosis is required"
 
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
+
+    # Lock and validate the appointment before creating a consultation.  The
+    # POST body is client-controlled, so its appointment ID must belong to the
+    # logged-in doctor and still be an active consultation today.
+    cursor.execute("""
+        SELECT *
+        FROM appointments
+        WHERE id=%s
+        FOR UPDATE
+    """, (appointment_id,))
+    appointment = cursor.fetchone()
+
+    if not appointment or str(appointment['doctor_id']) != str(session['doctor_id']):
+        conn.close()
+        return "Appointment not found or access denied.", 403
+
+    effective_status = get_effective_status(appointment)
+    if effective_status != appointment['status']:
+        cursor.execute(
+            "UPDATE appointments SET status=%s WHERE id=%s",
+            (effective_status, appointment_id)
+        )
+        conn.commit()
+        appointment['status'] = effective_status
+
+    if (
+        str(appointment['date']) != datetime.now().strftime('%Y-%m-%d')
+        or appointment['status'] != 'In-Consultation'
+    ):
+        conn.close()
+        return "This appointment is not available for completion.", 403
 
     # =========================
     # SAVE CONSULTATION
@@ -4508,12 +4651,21 @@ def complete_consultation():
         SET status='Completed'
 
         WHERE id=%s
+        AND doctor_id=%s
+        AND date=CURDATE()
+        AND status='In-Consultation'
 
     """, (
 
         appointment_id,
+        session['doctor_id'],
 
     ))
+
+    if cursor.rowcount != 1:
+        conn.rollback()
+        conn.close()
+        return "This appointment is not available for completion.", 403
 
     conn.commit()
     
@@ -5864,6 +6016,9 @@ def edit_clinic(id):
 @app.route('/add_clinic', methods=['GET', 'POST'])
 def add_clinic():
 
+    if 'clinic_admin_id' not in session:
+        return redirect(url_for('clinic_login'))
+
     if request.method == 'POST':
 
         clinic_name = request.form['clinic_name']
@@ -6919,8 +7074,7 @@ def appointment_monitoring():
     
     # Apply time-based status override
     for apt in appointments:
-        if apt['status'] not in ['Completed', 'Cancelled', 'Missed', 'In-Consultation']:
-            apt['status'] = get_effective_status(apt)
+        apt['status'] = get_effective_status(apt)
 
     # Summary stats
     total_appointments = len(appointments)
@@ -7025,8 +7179,7 @@ def queue_monitoring():
 
             # =========================
             # GET TODAY'S ACTIVE APPOINTMENTS FOR THIS DOCTOR
-            # In-Consultation spans across days (overnight), so include regardless of date
-            # Booked and Waiting should only be today's appointments
+            # Only today's active appointments belong in the live queue.
             # =========================
             cursor.execute("""
                 SELECT
@@ -7037,9 +7190,8 @@ def queue_monitoring():
                 LEFT JOIN patients p ON a.patient_id = p.id
                 WHERE a.doctor_id=%s
                 AND (
-                    (a.date=CURDATE() AND a.status IN ('Booked', 'Waiting'))
-                    OR
-                    (a.status='In-Consultation')
+                    a.date=CURDATE()
+                    AND a.status IN ('Booked', 'Waiting', 'In-Consultation')
                 )
                 ORDER BY
                     CASE

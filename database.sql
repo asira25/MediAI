@@ -83,9 +83,11 @@ CREATE TABLE `notifications` (
   `patient_id` int DEFAULT NULL,
   `title` varchar(255) DEFAULT NULL,
   `message` text,
-  `is_read` varchar(10) DEFAULT 'No',
+  `notification_key` varchar(64) DEFAULT NULL,
+  `is_read` tinyint(1) NOT NULL DEFAULT 0,
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`)
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_notifications_notification_key` (`notification_key`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE `patients` (
@@ -165,4 +167,4 @@ INSERT INTO `health_announcements` (`id`, `title`, `category`, `message`, `start
   (1, 'Welcome to MediAI', 'General Announcement', 'This is a sample announcement created for local development.', '2026-01-01', '2027-01-01', 'Active');
 
 INSERT INTO `notifications` (`id`, `patient_id`, `title`, `message`, `is_read`) VALUES
-  (1, 1, 'Welcome', 'Your demonstration account is ready.', 'No');
+(1, 1, 'Welcome', 'Your demonstration account is ready.', 0);
