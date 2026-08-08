@@ -56,7 +56,7 @@ def get_effective_status(appointment):
     Status transitions:
     - Booked → Waiting: Exactly at appointment time
     - Booked → Missed: 15 minutes after appointment time
-    - Waiting → Missed: 45 minutes after appointment time (no-show)
+    - Waiting → Missed: 15 minutes after appointment time (no-show)
     - In-Consultation → Missed: When its appointment date has passed
     - Completed, Cancelled, Missed: Preserved as-is
     
@@ -91,14 +91,14 @@ def get_effective_status(appointment):
     
     if db_status == 'Booked':
         missed_time = appointment_datetime + timedelta(minutes=15)
-        if current_datetime > missed_time:
+        if current_datetime >= missed_time:
             return 'Missed'
         elif current_datetime >= appointment_datetime:
             return 'Waiting'
     
     elif db_status == 'Waiting':
-        no_show_time = appointment_datetime + timedelta(minutes=45)
-        if current_datetime > no_show_time:
+        missed_time = appointment_datetime + timedelta(minutes=15)
+        if current_datetime >= missed_time:
             return 'Missed'
     
     return db_status
@@ -111,8 +111,7 @@ def update_single_appointment_status(appointment_id):
     This function implements AUTOMATIC status transitions:
     - Booked → Waiting: When current time reaches appointment time
     - Booked → Missed: If patient doesn't arrive within 15-minute grace period
-    - Waiting → Missed: If patient doesn't arrive within 45-minute no-show window
-      (15min grace + 30min extra waiting time)
+    - Waiting → Missed: If patient doesn't arrive within the 15-minute grace period
     
     MANUAL transitions (handled by doctor actions):
     - Waiting → In-Consultation: Doctor clicks "Start Consultation"
