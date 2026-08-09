@@ -663,7 +663,8 @@ MEDIUM
 <input
 type="radio"
 name="urgency"
-value="Routine">
+value="Routine"
+onchange="calculatePriority()">
 
 <div>
 
@@ -687,7 +688,8 @@ id="urgentCard">
 type="radio"
 name="urgency"
 value="Very Urgent"
-id="urgentOption">
+id="urgentOption"
+onchange="calculatePriority()">
 
 <div>
 
@@ -989,6 +991,13 @@ function calculatePriority(){
     let patientAge =
     Number("{{ patient.age }}");
 
+    let selectedUrgency =
+    document.querySelector(
+        'input[name="urgency"]:checked'
+    );
+
+    let urgency = selectedUrgency ? selectedUrgency.value : "Routine";
+
     let score = 0;
 
     // SEVERITY
@@ -1060,25 +1069,26 @@ function calculatePriority(){
         score += 5;
     }
 
+    if(["urgent", "very urgent"].includes(urgency.toLowerCase())){
+
+        score += 10;
+
+    }
+
+    else{
+
+        score += 3;
+    }
+
     // KEYWORDS
 
     const emergencyKeywords = [
 
         "chest pain",
         "difficulty breathing",
-        "severe bleeding",
-        "unconscious",
         "seizure",
         "stroke",
         "heart attack",
-        "head injury",
-        "broken bone",
-        "severe abdominal pain",
-        "poisoning",
-        "overdose",
-        "suicide",
-        "severe allergic reaction",
-        "anaphylaxis",
         "cannot breathe"
 
     ];
@@ -1087,15 +1097,9 @@ function calculatePriority(){
 
         "fever",
         "vomit",
-        "dizzy",
-        "faint",
-        "confusion",
-        "dehydration",
-        "severe pain",
-        "swelling",
         "rash",
-        "bleeding",
-        "infection"
+        "infection",
+        "dizziness"
 
     ];
 
@@ -1123,7 +1127,7 @@ function calculatePriority(){
 
                 warningDetected = true;
 
-                score += 10;
+                score += 7;
 
                 break;
             }
@@ -1147,7 +1151,7 @@ function calculatePriority(){
     let info =
     document.getElementById("priorityInfo");
 
-    if(score >= 67){
+    if(score >= 70){
 
         badge.innerHTML =
         "HIGH";
@@ -1299,25 +1303,26 @@ function showAssessmentPopup(){
         score += 5;
     }
 
+    if(["urgent", "very urgent"].includes(urgency.toLowerCase())){
+
+        score += 10;
+
+    }
+
+    else{
+
+        score += 3;
+    }
+
     // KEYWORDS
 
     const emergencyKeywords = [
 
         "chest pain",
         "difficulty breathing",
-        "severe bleeding",
-        "unconscious",
         "seizure",
         "stroke",
         "heart attack",
-        "head injury",
-        "broken bone",
-        "severe abdominal pain",
-        "poisoning",
-        "overdose",
-        "suicide",
-        "severe allergic reaction",
-        "anaphylaxis",
         "cannot breathe"
 
     ];
@@ -1326,15 +1331,9 @@ function showAssessmentPopup(){
 
         "fever",
         "vomit",
-        "dizzy",
-        "faint",
-        "confusion",
-        "dehydration",
-        "severe pain",
-        "swelling",
         "rash",
-        "bleeding",
-        "infection"
+        "infection",
+        "dizziness"
 
     ];
 
@@ -1362,7 +1361,7 @@ function showAssessmentPopup(){
 
                 warningDetected = true;
 
-                score += 10;
+                score += 7;
 
                 break;
             }

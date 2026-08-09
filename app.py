@@ -44,6 +44,78 @@ atexit.register(shutdown_scheduler)
 
 
 # =========================
+# AI TRIAGE SCORING
+# =========================
+TRIAGE_SEVERITY_POINTS = {
+    'mild': 10,
+    'moderate': 25,
+    'severe': 40,
+}
+
+TRIAGE_DURATION_POINTS = {
+    'less than 24 hours': 15,
+    '1-3 days': 12,
+    '4-7 days': 8,
+    '1-2 weeks': 5,
+    'more than 2 weeks': 3,
+}
+
+TRIAGE_EMERGENCY_KEYWORDS = [
+    'chest pain', 'difficulty breathing', 'heart attack',
+    'stroke', 'seizure', 'cannot breathe'
+]
+
+TRIAGE_WARNING_KEYWORDS = [
+    'fever', 'vomit', 'rash', 'infection', 'dizziness'
+]
+
+TRIAGE_URGENT_VALUES = {'urgent', 'very urgent'}
+TRIAGE_ROUTINE_VALUES = {'routine', 'normal'}
+
+
+def calculate_triage_score(symptoms, duration, severity, urgency, age):
+    """Validate and calculate the authoritative MediAI triage result."""
+    symptoms = (symptoms or '').strip().lower()
+    duration_key = (duration or '').strip().lower()
+    severity_key = (severity or '').strip().lower()
+    urgency_key = (urgency or '').strip().lower()
+
+    if not symptoms:
+        raise ValueError('Symptoms are required.')
+    if severity_key not in TRIAGE_SEVERITY_POINTS:
+        raise ValueError('Please select a valid severity level.')
+    if duration_key not in TRIAGE_DURATION_POINTS:
+        raise ValueError('Please select a valid symptom duration.')
+    if urgency_key not in TRIAGE_URGENT_VALUES | TRIAGE_ROUTINE_VALUES:
+        raise ValueError('Please select a valid urgency level.')
+
+    try:
+        age = int(age)
+    except (TypeError, ValueError):
+        raise ValueError('Age must be a whole number.')
+
+    if not 0 <= age <= 120:
+        raise ValueError('Age must be between 0 and 120.')
+
+    score = TRIAGE_SEVERITY_POINTS[severity_key]
+    score += TRIAGE_DURATION_POINTS[duration_key]
+    score += 20 if age >= 65 else 15 if age < 18 else 5
+
+    emergency_detected = any(
+        keyword in symptoms for keyword in TRIAGE_EMERGENCY_KEYWORDS
+    )
+    if emergency_detected:
+        score += 15
+    elif any(keyword in symptoms for keyword in TRIAGE_WARNING_KEYWORDS):
+        score += 7
+
+    score += 10 if urgency_key in TRIAGE_URGENT_VALUES else 3
+
+    priority = 'HIGH' if score >= 70 else 'MEDIUM' if score >= 40 else 'LOW'
+    return score, priority, emergency_detected
+
+
+# =========================
 # APPOINTMENT STATUS UPDATE FUNCTIONS
 # =========================
 
@@ -218,6 +290,33 @@ def update_all_appointment_statuses():
             
     except Exception as e:
         print(f"[Scheduler] Error in batch update: {str(e)}")
+
+
+def sync_doctor_appointment_statuses(doctor_id):
+    """Persist due time-based transitions for one doctor's active appointments."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("""
+            SELECT id
+            FROM appointments
+            WHERE doctor_id=%s
+            AND date <= CURDATE()
+            AND status NOT IN ('Completed', 'Cancelled', 'Missed')
+        """, (doctor_id,))
+        appointment_ids = [appointment['id'] for appointment in cursor.fetchall()]
+    except Exception as e:
+        # A failed refresh must not prevent the doctor from viewing the
+        # dashboard; the scheduler will retry the status update separately.
+        print(f"Error syncing doctor {doctor_id} appointment statuses: {str(e)}")
+        appointment_ids = []
+    finally:
+        if conn:
+            conn.close()
+
+    for appointment_id in appointment_ids:
+        update_single_appointment_status(appointment_id)
 
 
 # Add the scheduler job - runs every 15 seconds
@@ -1556,143 +1655,16 @@ def triage():
 # =========================
 @app.route('/calculate_priority', methods=['POST'])
 def calculate_priority():
-
-    symptoms = request.form['symptoms'].lower()
-
-    duration = request.form['duration']
-
-    severity = request.form['severity']
-
-    urgency = request.form['urgency']
-
-    age = int(request.form['age'])
-
-    score = 0
-
-    # =========================
-    # SEVERITY SCORE
-    # =========================
-    if severity == "Mild":
-
-        score += 10
-
-    elif severity == "Moderate":
-
-        score += 25
-
-    else:
-
-        score += 40
-
-    # =========================
-    # DURATION SCORE
-    # ========================= 
-    if duration == "Less than 24 hours":
-
-        score += 15
-
-    elif duration == "1-3 days":
-
-        score += 12
-
-    elif duration == "4-7 days":
-
-        score += 8
-
-    elif duration == "1-2 weeks":
-
-        score += 5
-
-    else:
-
-        score += 3
-
-    # =========================
-    # AGE SCORE
-    # =========================
-    if age >= 65:
-
-        score += 20
-
-    elif age < 18:
-
-        score += 15
-
-    else:
-
-        score += 5
-
-    # =========================
-    # EMERGENCY KEYWORDS
-    # =========================
-    emergency_keywords = [
-
-        "chest pain",
-        "difficulty breathing",
-        "heart attack",
-        "stroke",
-        "seizure",
-        "cannot breathe"
-
-    ]
-
-    warning_keywords = [
-
-        "fever",
-        "vomit",
-        "rash",
-        "infection",
-        "dizziness"
-
-    ]
-
-    emergency_detected = False
-
-    for word in emergency_keywords:
-
-        if word in symptoms:
-
-            emergency_detected = True
-
-            score += 15
-
-            break
-
-    if not emergency_detected:
-
-        for word in warning_keywords:
-
-            if word in symptoms:
-
-                score += 7
-
-                break
-
-    # =========================
-    # URGENCY SCORE
-    # =========================
-    if urgency == "urgent":
-
-        score += 10
-
-    else:
-
-        score += 3
-
-    # =========================
-    # PRIORITY LEVEL
-    # =========================
-    if score >= 70:
-
-        priority = "HIGH"
-
-    elif score >= 40:
-
-        priority = "MEDIUM"
-
-    else:
-
-        priority = "LOW"
+    try:
+        score, priority, _ = calculate_triage_score(
+            request.form.get('symptoms'),
+            request.form.get('duration'),
+            request.form.get('severity'),
+            request.form.get('urgency'),
+            request.form.get('age')
+        )
+    except ValueError as error:
+        return jsonify({'error': str(error)}), 400
 
     return jsonify({
 
@@ -1999,134 +1971,19 @@ def appointment_slot():
 
     age = int(patient['age'])
 
-    # =========================
-    # AI SCORE
-    # =========================
-    score = 0
-
-    # SEVERITY
-    if severity == "Mild":
-
-        score += 10
-
-    elif severity == "Moderate":
-
-        score += 25
-
-    else:
-
-        score += 40
-
-    # DURATION
-    if duration == "Less than 24 hours":
-
-        score += 15
-
-    elif duration == "1-3 days":
-
-        score += 12
-
-    elif duration == "4-7 days":
-
-        score += 8
-
-    elif duration == "1-2 weeks":
-
-        score += 5
-
-    else:
-
-        score += 3
-
-    # AGE
-    if age >= 65:
-
-        score += 20
-
-    elif age < 18:
-
-        score += 15
-
-    else:
-
-        score += 5
-
-    # =========================
-    # EMERGENCY KEYWORDS
-    # =========================
-    emergency_keywords = [
-
-        "chest pain",
-        "difficulty breathing",
-        "heart attack",
-        "stroke",
-        "seizure",
-        "cannot breathe"
-
-    ]
-
-    warning_keywords = [
-
-        "fever",
-        "vomit",
-        "rash",
-        "infection",
-        "dizziness"
-
-    ]
-
-    emergency_detected = False
-
-    for word in emergency_keywords:
-
-        if word in symptoms:
-
-            emergency_detected = True
-
-            score += 15
-
-            break
-
-    if not emergency_detected:
-
-        for word in warning_keywords:
-
-            if word in symptoms:
-
-                score += 7
-
-                break
-
-    # =========================
-    # URGENCY SCORE
-    # =========================
-    if urgency == "urgent":
-
-        score += 10
-
-    else:
-
-        score += 3
-
-    # =========================
-    # PRIORITY LEVEL
-    # =========================
-    if score >= 70:
-
-        priority = "HIGH"
-
-    elif score >= 40:
-
-        priority = "MEDIUM"
-
-    else:
-
-        priority = "LOW"
+    try:
+        score, priority, emergency_detected = calculate_triage_score(
+            symptoms, duration, severity, urgency, age
+        )
+    except ValueError as error:
+        conn.close()
+        return str(error), 400
 
     # =========================
     # AI URGENCY OVERRIDE
     # =========================
     override_message = None
+    urgency_overridden = False
 
     # AUTO UPGRADE
     if (
@@ -2137,6 +1994,7 @@ def appointment_slot():
     ):
 
         urgency = "urgent"
+        urgency_overridden = True
 
         override_message = (
 
@@ -2155,12 +2013,19 @@ def appointment_slot():
     ):
 
         urgency = "normal"
+        urgency_overridden = True
 
         override_message = (
 
             "Symptoms appear mild. "
             "Placed into normal queue."
 
+        )
+
+    # Keep the persisted urgency, score, and priority from one final assessment.
+    if urgency_overridden:
+        score, priority, emergency_detected = calculate_triage_score(
+            symptoms, duration, severity, urgency, age
         )
 
     # =========================
@@ -4027,6 +3892,12 @@ def doctor_dashboard():
 
     doctor_id = session['doctor_id']
 
+    # Keep the first server-rendered view consistent with the live dashboard.
+    # The browser polls for updates below, but a doctor who opens the page at an
+    # appointment's start time should see the Start Consultation action
+    # immediately rather than waiting for the scheduler's next run.
+    sync_doctor_appointment_statuses(doctor_id)
+
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
 
@@ -4188,6 +4059,11 @@ def api_doctor_dashboard_data():
         return jsonify({'error': 'Not authenticated'}), 401
 
     doctor_id = session['doctor_id']
+
+    # Persist time-based transitions before returning data.  This makes the
+    # dashboard poll an immediate, reliable fallback to the background
+    # scheduler, including when a new worker has not started its scheduler.
+    sync_doctor_appointment_statuses(doctor_id)
 
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
