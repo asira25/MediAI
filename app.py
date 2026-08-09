@@ -424,9 +424,15 @@ SPECIALTY_DESCRIPTIONS = {
 
     "Cardiology": "Heart Problems",
 
+    "General Surgery": "General Surgical Care & Procedures",
+
     "Orthopedics": "Bone, Joint & Muscle Problems",
 
+    "Orthopedic": "Bone, Joint & Muscle Problems",
+
     "ENT": "Ear, Nose & Throat Problems",
+
+    "ENT Specialist": "Ear, Nose & Throat Problems",
 
     "Ophthalmology": "Eye Problems",
 
