@@ -1,6 +1,7 @@
 import email
 import hashlib
 import os
+import re
 
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify, flash, send_file
 from flask_cors import CORS
@@ -71,6 +72,77 @@ TRIAGE_WARNING_KEYWORDS = [
 
 TRIAGE_URGENT_VALUES = {'urgent', 'very urgent'}
 TRIAGE_ROUTINE_VALUES = {'routine', 'normal'}
+
+
+CLINICAL_PLACEHOLDER_VALUES = {
+    'test', 'testing', 'abc', 'asdf', 'asdfgh', 'asdfghjkl', 'qwerty',
+    'n/a', 'na', 'none', 'diagnosis', 'placeholder', 'random'
+}
+
+
+def validate_clinical_text(value, field_name, required=False):
+    """Normalize and validate free-text consultation fields without a diagnosis dictionary."""
+    text = (value or '').strip()
+    if not text:
+        return text, f'{field_name} is required.' if required else None
+
+    letters = ''.join(re.findall(r'[A-Za-z]', text))
+    normalized = re.sub(r'[^a-z0-9]+', '', text.lower())
+    if len(text) < 3 or not letters:
+        return text, f'Please enter a valid {field_name.lower()}.'
+    if normalized in CLINICAL_PLACEHOLDER_VALUES:
+        return text, f'Please enter a valid {field_name.lower()}, not a placeholder.'
+
+    # This catches long, consonant-heavy keyboard-like strings while preserving
+    # short clinical abbreviations such as UTI or COPD.
+    if (
+        ' ' not in text
+        and len(letters) >= 8
+        and sum(letter.lower() in 'aeiou' for letter in letters) / len(letters) < 0.25
+    ):
+        return text, f'Please enter meaningful {field_name.lower()} text.'
+    return text, None
+
+
+def validate_prescriptions(medicines, dosages, frequencies, durations):
+    """Return normalized complete prescription rows or a validation message."""
+    field_lists = (medicines, dosages, frequencies, durations)
+    if len({len(values) for values in field_lists}) != 1:
+        return None, 'Prescription rows are incomplete.'
+
+    dosage_pattern = re.compile(
+        r'^\d+(?:\.\d+)?\s*(?:mcg|mg|g|ml|tablet(?:s)?|capsule(?:s)?|drop(?:s)?|puff(?:s)?)$',
+        re.IGNORECASE
+    )
+    frequency_pattern = re.compile(
+        r'^(?:once|twice|three|\d+)\s*(?:times?\s*)?daily$|^\d+\s*x\s*daily$|^every\s+\d+\s+hours?$|^as\s+needed$',
+        re.IGNORECASE
+    )
+    duration_pattern = re.compile(
+        r'^(?:for\s+)?\d+\s+(?:day|days|week|weeks|month|months)$',
+        re.IGNORECASE
+    )
+
+    normalized_rows = []
+    for medicine, dosage, frequency, duration in zip(*field_lists):
+        row = [value.strip() for value in (medicine, dosage, frequency, duration)]
+        if not any(row):
+            continue
+        if not all(row):
+            return None, 'Please complete all prescription fields or remove the empty row.'
+
+        normalized_medicine, error = validate_clinical_text(row[0], 'medicine', required=True)
+        if error:
+            return None, error
+        if not dosage_pattern.fullmatch(row[1]):
+            return None, 'Dosage format is invalid. Example: 500mg or 5 ml.'
+        if not frequency_pattern.fullmatch(row[2]):
+            return None, 'Frequency format is invalid. Example: Twice daily or Every 8 hours.'
+        if not duration_pattern.fullmatch(row[3]):
+            return None, 'Duration format is invalid. Example: 7 days or 2 weeks.'
+        normalized_rows.append((normalized_medicine, row[1], row[2], row[3]))
+
+    return normalized_rows, None
 
 
 def calculate_triage_score(symptoms, duration, severity, urgency, age):
@@ -4392,19 +4464,32 @@ def complete_consultation():
         return redirect(url_for('doctor_login'))
 
     appointment_id = request.form.get('appointment_id', '').strip()
-    diagnosis = request.form.get('diagnosis', '')
-
-    remarks = request.form.get(
-        'remarks',
-        ''
+    diagnosis, diagnosis_error = validate_clinical_text(
+        request.form.get('diagnosis', ''), 'Diagnosis', required=True
+    )
+    remarks, remarks_error = validate_clinical_text(
+        request.form.get('remarks', ''), 'Remarks / notes'
+    )
+    medicines = request.form.getlist('medicine[]')
+    dosages = request.form.getlist('dosage[]')
+    frequencies = request.form.getlist('frequency[]')
+    durations = request.form.getlist('duration[]')
+    prescriptions, prescription_error = validate_prescriptions(
+        medicines, dosages, frequencies, durations
     )
 
-    if not appointment_id or diagnosis.strip() == '':
-
-        return "Diagnosis is required"
+    if not appointment_id:
+        return "Appointment is required.", 400
+    if diagnosis_error:
+        return diagnosis_error, 400
+    if remarks_error:
+        return remarks_error, 400
+    if prescription_error:
+        return prescription_error, 400
 
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
+    conn.start_transaction()
 
     # Lock and validate the appointment before creating a consultation.  The
     # POST body is client-controlled, so its appointment ID must belong to the
@@ -4418,6 +4503,7 @@ def complete_consultation():
     appointment = cursor.fetchone()
 
     if not appointment or str(appointment['doctor_id']) != str(session['doctor_id']):
+        conn.rollback()
         conn.close()
         return "Appointment not found or access denied.", 403
 
@@ -4427,13 +4513,13 @@ def complete_consultation():
             "UPDATE appointments SET status=%s WHERE id=%s",
             (effective_status, appointment_id)
         )
-        conn.commit()
         appointment['status'] = effective_status
 
     if (
         str(appointment['date']) != datetime.now().strftime('%Y-%m-%d')
         or appointment['status'] != 'In-Consultation'
     ):
+        conn.rollback()
         conn.close()
         return "This appointment is not available for completion.", 403
 
@@ -4464,42 +4550,9 @@ def complete_consultation():
     # =========================
     # SAVE PRESCRIPTIONS
     # =========================
-    medicines = request.form.getlist(
-        'medicine[]'
-    )
+    for med, dose, freq, dur in prescriptions:
 
-    dosages = request.form.getlist(
-        'dosage[]'
-    )
-
-    frequencies = request.form.getlist(
-        'frequency[]'
-    )
-
-    durations = request.form.getlist(
-        'duration[]'
-    )
-
-    for med, dose, freq, dur in zip(
-
-        medicines,
-        dosages,
-        frequencies,
-        durations
-
-    ):
-
-        # Ignore empty rows
-        if (
-
-            med.strip()
-            and dose.strip()
-            and freq.strip()
-            and dur.strip()
-
-        ):
-
-            cursor.execute("""
+        cursor.execute("""
 
                 INSERT INTO prescriptions
                 (
@@ -4512,15 +4565,15 @@ def complete_consultation():
 
                 VALUES (%s,%s,%s,%s,%s)
 
-            """, (
+        """, (
 
                 consultation_id,
                 med,
                 dose,
                 freq,
-                dur
+            dur
 
-            ))
+        ))
 
     # =========================
     # UPDATE APPOINTMENT

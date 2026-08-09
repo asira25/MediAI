@@ -101,8 +101,8 @@ body{
 
     </div>
 
-    <form method="POST"
-          action="/complete_consultation">
+    <form id="consultationForm" method="POST"
+          action="/complete_consultation" novalidate>
 
         <input
         type="hidden"
@@ -294,11 +294,13 @@ body{
                         </label>
 
                         <textarea
+                        id="diagnosis"
                         name="diagnosis"
                         class="form-control"
                         rows="4"
                         required
                         placeholder="Enter diagnosis..."></textarea>
+                        <div class="invalid-feedback" id="diagnosis-error"></div>
 
                     </div>
 
@@ -311,10 +313,12 @@ body{
                         </label>
 
                         <textarea
+                        id="remarks"
                         name="remarks"
                         class="form-control"
                         rows="4"
                         placeholder="Additional consultation notes..."></textarea>
+                        <div class="invalid-feedback" id="remarks-error"></div>
 
                     </div>
 
@@ -362,7 +366,7 @@ body{
                             <button
                             type="submit"
                             class="btn complete-btn w-100"
-                            onclick="return confirm('Complete consultation?')">
+                            >
 
                                 Complete Consultation
 
@@ -417,11 +421,78 @@ body{
 
 <script>
 
+const placeholderValues = new Set([
+    'test', 'testing', 'abc', 'asdf', 'asdfgh', 'asdfghjkl', 'qwerty',
+    'n/a', 'na', 'none', 'diagnosis', 'placeholder', 'random'
+]);
+
+function clinicalTextError(value, label, required = false) {
+    const text = value.trim();
+    if (!text) return required ? `${label} is required.` : '';
+    const letters = (text.match(/[A-Za-z]/g) || []).join('');
+    const normalized = text.toLowerCase().replace(/[^a-z0-9]+/g, '');
+    if (text.length < 3 || !letters) return `Please enter a valid ${label.toLowerCase()}.`;
+    if (placeholderValues.has(normalized)) return `Please enter a valid ${label.toLowerCase()}, not a placeholder.`;
+    const vowels = (letters.match(/[aeiou]/gi) || []).length;
+    if (!text.includes(' ') && letters.length >= 8 && vowels / letters.length < 0.25) {
+        return `Please enter meaningful ${label.toLowerCase()} text.`;
+    }
+    return '';
+}
+
+function showFieldError(field, message) {
+    field.classList.toggle('is-invalid', Boolean(message));
+    const error = document.getElementById(`${field.id}-error`);
+    if (error) error.textContent = message;
+}
+
+function prescriptionError(row) {
+    const fields = [...row.querySelectorAll('input')];
+    const values = fields.map(field => field.value.trim());
+    if (!values.some(Boolean)) return '';
+    if (!values.every(Boolean)) return 'Please complete all prescription fields or remove the empty row.';
+    if (clinicalTextError(values[0], 'Medicine', true)) return 'Please enter a valid medicine.';
+    if (!/^\d+(?:\.\d+)?\s*(?:mcg|mg|g|ml|tablets?|capsules?|drops?|puffs?)$/i.test(values[1])) {
+        return 'Dosage format is invalid. Example: 500mg or 5 ml.';
+    }
+    if (!/^(?:(?:once|twice|three|\d+)\s*(?:times?\s*)?daily|\d+\s*x\s*daily|every\s+\d+\s+hours?|as\s+needed)$/i.test(values[2])) {
+        return 'Frequency format is invalid. Example: Twice daily or Every 8 hours.';
+    }
+    if (!/^(?:for\s+)?\d+\s+(?:day|days|week|weeks|month|months)$/i.test(values[3])) {
+        return 'Duration format is invalid. Example: 7 days or 2 weeks.';
+    }
+    return '';
+}
+
+document.getElementById('consultationForm').addEventListener('submit', event => {
+    const diagnosis = document.getElementById('diagnosis');
+    const remarks = document.getElementById('remarks');
+    diagnosis.value = diagnosis.value.trim();
+    remarks.value = remarks.value.trim();
+    let invalid = false;
+
+    const diagnosisError = clinicalTextError(diagnosis.value, 'Diagnosis', true);
+    showFieldError(diagnosis, diagnosisError);
+    invalid ||= Boolean(diagnosisError);
+    const remarksError = clinicalTextError(remarks.value, 'Remarks / notes');
+    showFieldError(remarks, remarksError);
+    invalid ||= Boolean(remarksError);
+
+    document.querySelectorAll('.prescription-row').forEach(row => {
+        const error = prescriptionError(row);
+        row.querySelectorAll('input').forEach(field => field.classList.toggle('is-invalid', Boolean(error)));
+        row.querySelector('.prescription-error').textContent = error;
+        invalid ||= Boolean(error);
+    });
+
+    if (invalid || !confirm('Complete consultation?')) event.preventDefault();
+});
+
 function addPrescription(){
 
     let html = `
 
-    <div class="row prescription-row">
+    <div class="row prescription-row mb-2">
 
         <div class="col-md-3">
 
@@ -472,6 +543,8 @@ function addPrescription(){
             </button>
 
         </div>
+
+        <div class="col-12 invalid-feedback prescription-error"></div>
 
     </div>
 
