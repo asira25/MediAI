@@ -91,20 +91,83 @@
         .stats{
             margin-top: 25px;
             display: grid;
-            grid-template-columns: repeat(auto-fit,minmax(180px,1fr));
-            gap: 20px;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 16px;
         }
 
         .stat-box{
             background: #f8fafc;
             border-radius: 18px;
-            padding: 25px;
+            min-height: 170px;
+            padding: 22px 18px;
             text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
         }
 
         .stat-box i{
             font-size: 22px;
             margin-bottom: 10px;
+        }
+
+        .stat-box h1{
+            min-height: 42px;
+            margin: 0 0 7px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #172033;
+            font-size: clamp(1.75rem, 3vw, 2.25rem);
+            font-weight: 700;
+            line-height: 1.15;
+        }
+
+        .stat-box small{
+            color: #64748b;
+            font-size: .78rem;
+            font-weight: 600;
+            line-height: 1.3;
+        }
+
+        .stat-value-pending{
+            color: #94a3b8;
+            font-size: 1.4rem;
+        }
+
+        .now-serving-empty{
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            align-items: center;
+        }
+
+        .now-serving-empty__value{
+            color: #475569;
+            font-size: 1rem;
+            font-weight: 700;
+            white-space: nowrap;
+        }
+
+        .now-serving-empty__detail{
+            color: #94a3b8;
+            font-size: .72rem;
+            font-weight: 500;
+            line-height: 1.25;
+            max-width: 150px;
+        }
+
+        @media (max-width: 575.98px){
+            .stats{
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                gap: 12px;
+            }
+
+            .stat-box{
+                min-height: 150px;
+                padding: 18px 12px;
+            }
         }
 
         .progress-title{
@@ -731,7 +794,7 @@ async function fetchQueue(){
     // For Booked: show "Pending" instead of "#1" with updated label
     if (status === "Booked") {
         document.getElementById("position").innerHTML =
-            '<span style="color:#94a3b8;font-size:24px;">Pending</span>';
+            '<span class="stat-value-pending">Pending</span>';
         document.getElementById("position_label").innerHTML = 'Queue Position';
     } else {
         document.getElementById("position").innerHTML =
@@ -740,8 +803,17 @@ async function fetchQueue(){
     }
 
     // -- NOW SERVING --
-    document.getElementById("now_serving").innerHTML =
-    "Q" + String(data.now_serving).padStart(3, '0');
+    const nowServingElement = document.getElementById("now_serving");
+    if (data.now_serving != null && data.now_serving !== '') {
+        nowServingElement.innerHTML =
+            "Q" + String(data.now_serving).padStart(3, '0');
+    } else {
+        nowServingElement.innerHTML =
+            '<span class="now-serving-empty">' +
+                '<span class="now-serving-empty__value">No Active Consultation</span>' +
+                '<span class="now-serving-empty__detail">No consultation currently in progress</span>' +
+            '</span>';
+    }
 
     // -- YOUR QUEUE NUMBER -- (always show)
     document.getElementById("your_queue").innerHTML =

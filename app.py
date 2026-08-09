@@ -74,6 +74,46 @@ TRIAGE_URGENT_VALUES = {'urgent', 'very urgent'}
 TRIAGE_ROUTINE_VALUES = {'routine', 'normal'}
 
 
+# The queue is always local to one doctor and appointment date.  Keep this in
+# one place so every queue view uses exactly the same tiers and tie-breakers.
+# Routine patients are FCFS regardless of AI priority; only urgent tiers
+# advance ahead of that routine queue.
+ACTIVE_QUEUE_STATUSES = ('Booked', 'Waiting', 'In-Consultation')
+
+
+def queue_order_sql(alias='a', include_in_consultation=True):
+    """Return the shared SQL ordering for an active appointment queue."""
+    current_rank = f"WHEN {alias}.status='In-Consultation' THEN 0" if include_in_consultation else ''
+    return f"""
+        CASE
+            {current_rank}
+            WHEN {alias}.priority='HIGH' AND LOWER({alias}.urgency)='very urgent' THEN 1
+            WHEN {alias}.priority='HIGH' AND LOWER({alias}.urgency)='urgent' THEN 2
+            WHEN LOWER({alias}.urgency)='very urgent' THEN 3
+            WHEN LOWER({alias}.urgency)='urgent' THEN 4
+            ELSE 5
+        END,
+        {alias}.time ASC,
+        {alias}.id ASC
+    """
+
+
+def refresh_queue_numbers(cursor, doctor_id, appointment_date):
+    """Persist unique active queue positions for one doctor on one date only."""
+    cursor.execute(f"""
+        SELECT id
+        FROM appointments a
+        WHERE a.doctor_id=%s AND a.date=%s
+          AND a.status IN ('Booked', 'Waiting', 'In-Consultation')
+        ORDER BY {queue_order_sql('a')}
+    """, (doctor_id, appointment_date))
+    for position, appointment in enumerate(cursor.fetchall(), start=1):
+        cursor.execute(
+            "UPDATE appointments SET queue_number=%s WHERE id=%s",
+            (position, appointment['id'])
+        )
+
+
 CLINICAL_PLACEHOLDER_VALUES = {
     'test', 'testing', 'abc', 'asdf', 'asdfgh', 'asdfghjkl', 'qwerty',
     'n/a', 'na', 'none', 'diagnosis', 'placeholder', 'random'
@@ -290,6 +330,7 @@ def update_single_appointment_status(appointment_id):
             cursor.execute("""
                 UPDATE appointments SET status=%s WHERE id=%s
             """, (new_status, appointment_id))
+            refresh_queue_numbers(cursor, appointment['doctor_id'], appointment['date'])
             conn.commit()
             
             # If the appointment was marked as Missed, create a notification for the patient
@@ -2944,10 +2985,8 @@ def confirm_booking():
     priority = triage_result['priority_level']
     urgency = triage_result['urgency']
 
-    # =========================
-    # SMART QUEUE POSITION
-    # =========================
-    # HIGH + URGENT GOES FIRST
+    '''Obsolete clinic-wide queue count logic, retained only as non-executing
+    source context while the booking flow uses refresh_queue_numbers below.
 
 
     is_urgent_priority = (
@@ -3293,6 +3332,15 @@ def confirm_booking():
     wait_time = f"{wait_time_minutes} minutes"
 
 
+    '''
+    # Queue position is assigned after insert by refresh_queue_numbers(), when
+    # the appointment ID is available as the deterministic tie-breaker.
+    cursor.execute("SELECT consultation_duration FROM doctors WHERE id=%s", (doctor_id,))
+    doctor_info = cursor.fetchone()
+    consultation_duration = doctor_info['consultation_duration'] if doctor_info and doctor_info['consultation_duration'] else 15
+    multiplier = 0.7 if priority == "HIGH" else 1.0 if priority == "MEDIUM" else 1.2
+    wait_time = "0 minutes"
+
     # =========================
     # INSERT APPOINTMENT
     # =========================
@@ -3332,7 +3380,7 @@ def confirm_booking():
         clinic_id,          # <-- ADD THIS
         selected_date,
         selected_time,
-        queue_number,
+        0,  # assigned from the shared per-doctor queue after the row has an ID
         priority,
         urgency,
         wait_time,
@@ -3343,6 +3391,17 @@ def confirm_booking():
 
     conn.commit()
     appointment_id = cursor.lastrowid
+
+    # The appointment ID is the final deterministic tie-breaker, so assign all
+    # active positions only after inserting the new appointment.
+    refresh_queue_numbers(cursor, doctor_id, selected_date)
+    cursor.execute("SELECT queue_number FROM appointments WHERE id=%s", (appointment_id,))
+    queue_number = cursor.fetchone()['queue_number']
+    patients_ahead = queue_number - 1
+    wait_time_minutes = round(patients_ahead * consultation_duration * multiplier) if patients_ahead else 0
+    wait_time = f"{wait_time_minutes} minutes"
+    cursor.execute("UPDATE appointments SET wait_time=%s WHERE id=%s", (wait_time, appointment_id))
+    conn.commit()
 
     # =========================
     # CREATE NOTIFICATION
@@ -3470,6 +3529,8 @@ def cancel_appointment(appointment_id):
 
     ))
 
+    refresh_queue_numbers(cursor, appointment['doctor_id'], appointment['date'])
+
     # =========================
     # CREATE NOTIFICATION
     # =========================
@@ -3560,10 +3621,23 @@ def live_queue(appointment_id):
 
     appointment = cursor.fetchone()
     
-    # Calculate effective status based on current time
+    # Persist a time-based status change before querying the active queue.  The
+    # existing updater also refreshes that doctor's queue numbers and handles
+    # the missed-appointment notification.
     if appointment:
         effective_status = get_effective_status(appointment)
-        appointment['status'] = effective_status
+        if effective_status != appointment['status']:
+            update_single_appointment_status(appointment_id)
+            # The status updater uses its own connection. End this read-only
+            # transaction so the re-fetch sees that committed change instead
+            # of this connection's REPEATABLE-READ snapshot.
+            conn.rollback()
+            cursor.execute("""
+                SELECT *
+                FROM appointments
+                WHERE id=%s AND patient_id=%s
+            """, (appointment_id, session['patient_id']))
+            appointment = cursor.fetchone()
 
     if not appointment:
 
@@ -3573,9 +3647,8 @@ def live_queue(appointment_id):
             "error": "Appointment not found"
         }), 404
 
-    # =========================
-    # CHECK HIGH + URGENT
-    # =========================
+    '''Obsolete clinic-wide queue count logic.  Live Queue positions are
+    calculated solely by the shared per-doctor/date query below.
     is_urgent_priority = (
 
         appointment['priority'] == 'HIGH'
@@ -3722,6 +3795,22 @@ def live_queue(appointment_id):
 
         people_waiting = 0
 
+    '''
+    # Canonical per-doctor/date order, including the appointment-ID tie-breaker.
+    cursor.execute(f"""
+        SELECT a.id
+        FROM appointments a
+        WHERE a.doctor_id=%s AND a.date=%s
+          AND a.status IN ('Booked', 'Waiting', 'In-Consultation')
+        ORDER BY {queue_order_sql('a')}
+    """, (appointment['doctor_id'], appointment['date']))
+    queue_ids = [row['id'] for row in cursor.fetchall()]
+    total_queue = len(queue_ids)
+    queue_position = queue_ids.index(appointment['id']) + 1 if appointment['id'] in queue_ids else 0
+    current_position = queue_position
+    patients_ahead = max(queue_position - 1, 0)
+    people_waiting = max(total_queue - current_position, 0)
+
     # =========================
     # WAIT TIME
     # =========================
@@ -3827,14 +3916,13 @@ def live_queue(appointment_id):
 
         FROM appointments
 
-        WHERE clinic_id=%s
+        WHERE doctor_id=%s
         AND date=%s
-        AND status IN
-        ('Booked','Waiting','In-Consultation')
+        AND status='In-Consultation'
 
     """, (
 
-        appointment['clinic_id'],
+        appointment['doctor_id'],
         appointment['date']
 
     ))
@@ -3842,10 +3930,6 @@ def live_queue(appointment_id):
     now_serving_result = cursor.fetchone()
 
     now_serving = now_serving_result['now_serving']
-
-    if not now_serving:
-
-        now_serving = 1
 
     conn.close()
 
@@ -4034,23 +4118,7 @@ def doctor_dashboard():
     WHERE a.doctor_id=%s
     AND a.status != 'Cancelled'
 
-    ORDER BY
-
-    CASE
-
-        WHEN a.priority='HIGH'
-        AND LOWER(a.urgency)='very urgent'
-        THEN 1
-
-        WHEN a.priority='HIGH'
-        AND LOWER(a.urgency)='urgent'
-        THEN 2
-
-        ELSE 3
-
-    END,
-
-    a.time ASC
+    ORDER BY a.date ASC, """ + queue_order_sql('a') + """
 
 """, (doctor_id,))
 
@@ -4173,13 +4241,7 @@ def api_doctor_dashboard_data():
         LEFT JOIN patients p ON a.patient_id = p.id
         LEFT JOIN triage_results t ON a.triage_id = t.id
         WHERE a.doctor_id=%s AND a.status != 'Cancelled'
-        ORDER BY
-            CASE
-                WHEN a.priority='HIGH' AND LOWER(a.urgency)='very urgent' THEN 1
-                WHEN a.priority='HIGH' AND LOWER(a.urgency)='urgent' THEN 2
-                ELSE 3
-            END,
-            a.time ASC
+        ORDER BY a.date ASC, """ + queue_order_sql('a') + """
     """, (doctor_id,))
     appointments = cursor.fetchall()
 
@@ -4404,6 +4466,7 @@ def doctor_consultation(appointment_id):
 
     """, (appointment_id, session['doctor_id']))
 
+    refresh_queue_numbers(cursor, appointment['doctor_id'], appointment['date'])
     conn.commit()
     appointment['status'] = 'In-Consultation'
 
@@ -4601,6 +4664,7 @@ def complete_consultation():
         conn.close()
         return "This appointment is not available for completion.", 403
 
+    refresh_queue_numbers(cursor, appointment['doctor_id'], appointment['date'])
     conn.commit()
     
     # =========================
@@ -7001,7 +7065,7 @@ def appointment_monitoring():
         query += " AND a.doctor_id = %s"
         params.append(filter_doctor)
 
-    query += " ORDER BY a.date DESC, a.time ASC"
+    query += " ORDER BY a.date DESC, " + queue_order_sql('a')
 
     cursor.execute(query, tuple(params))
     appointments = cursor.fetchall()
@@ -7127,13 +7191,7 @@ def queue_monitoring():
                     a.date=CURDATE()
                     AND a.status IN ('Booked', 'Waiting', 'In-Consultation')
                 )
-                ORDER BY
-                    CASE
-                        WHEN a.priority='HIGH' AND LOWER(a.urgency)='very urgent' THEN 1
-                        WHEN a.priority='HIGH' AND LOWER(a.urgency)='urgent' THEN 2
-                        ELSE 3
-                    END,
-                    a.time ASC
+                ORDER BY """ + queue_order_sql('a') + """
             """, (doctor['id'],))
             appointments = cursor.fetchall()
 
