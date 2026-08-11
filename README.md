@@ -1,14 +1,16 @@
 # MediAI
 
-MediAI is a Flask web application for managing clinic appointments, patient triage, live queues, consultations, prescriptions, clinic announcements, and clinic/doctor administration.
+## Overview
+
+MediAI is a Flask web application for managing clinic appointments, patient triage, live queues, consultations, prescriptions, clinic announcements, and clinic/doctor administration. Its symptom assessment and appointment-priority scoring use rule-based logic; they are not based on a trained machine-learning model.
 
 ## Features
 
 - Patient registration, login, appointment booking, and appointment history
-- Symptom triage and priority-based appointment queues
+- Rule-based symptom assessment, priority scoring, and priority-based appointment queues
 - Live queue and appointment monitoring
 - Doctor consultation workflow, prescriptions, and consultation history
-- Clinic administration, operating hours, availability, and announcements
+- Clinic administration, operating hours, doctor availability, and announcements
 - PDF consultation and prescription output
 
 ## Requirements
@@ -61,7 +63,9 @@ Open the local address printed by Flask in your browser.
 
 ## Database
 
-`database.sql` is the complete MediAI database schema export. It creates the following tables without inserting sample accounts, patients, appointments, or other fictional records:
+`database.sql` contains the complete MediAI database schema. The development/demo environment may contain clinic administrator and doctor accounts used for system testing and demonstration.
+
+### Database Tables
 
 | Table | Purpose |
 | --- | --- |
@@ -76,24 +80,17 @@ Open the local address printed by Flask in your browser.
 | `prescriptions` | Medicines prescribed during a consultation |
 | `triage_results` | Patient symptom-triage results |
 
-### Account access
-
-The schema intentionally contains no user records. Create the first clinic administrator after importing the schema, then create clinics and doctors in the administrator dashboard.
-
-```sql
-INSERT INTO clinic_admin (username, password)
-VALUES ('your-admin-username', 'your-admin-password');
-```
+## Account Access
 
 Doctors log in with their username or email, password, and the unique clinic code in `doctors.clinic_code`. Clinic administrators log in with their username and password.
 
-#### Current clinic administrator login
+### Demo Clinic Administrator Login
 
 | ID | Username | Password |
 | --- | --- | --- |
 | 1 | `clinicadmin` | `admin123` |
 
-#### Current doctor login directory
+### Demo Doctor Login Directory
 
 | ID | Doctor | Username | Email | Password | Clinic code | Specialist | Clinic | Status | Availability | Duration (minutes) | Clinic ID |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -124,6 +121,8 @@ Doctors log in with their username or email, password, and the unique clinic cod
 | 26 | Dr. Liya | `liya25` | `liya12345@gmail.com` | `liya25` | `BG007` | General Medicine | Bangi Healthcare | Active | Available | 15 | 6 |
 | 27 | Dr Shreya | `Shreya25` | `shreya@gmail.com` | `SHREYA25` | `PMC001` | Family Medicine | KL Prime Medical Centre | Active | Available | 15 | 16 |
 
-## Security note
+## Security Note
 
-This README contains active account credentials; keep it private and never publish the repository. Do not commit database passwords or patient data. Before production use, implement secure password hashing and update the login code accordingly.
+This README contains demonstration account credentials intended for local development, testing, and academic demonstration only. Keep the repository private and do not publish active credentials, database passwords, or patient information.
+
+The current development version may use plaintext demonstration passwords. Before any production deployment, passwords must be securely hashed and appropriate application-security controls must be implemented.
