@@ -38,7 +38,7 @@ MediAI is a Flask web application for managing clinic appointments, patient tria
    ```
 
    ```powershell
-   mysql -u root -p mediai < database.sql
+   Get-Content database.sql | mysql -u root -p mediai
    ```
 
 4. Set the database connection variables for your session.
@@ -76,17 +76,24 @@ Open the local address printed by Flask in your browser.
 | `prescriptions` | Medicines prescribed during a consultation |
 | `triage_results` | Patient symptom-triage results |
 
-### Administrator and doctor records
+### Account access
 
-These are the current records from the local MediAI database, checked on 12 August 2026. Doctors sign in with their username or email, password, and clinic code. The clinic administrator signs in with the username and password below.
+The schema intentionally contains no user records. Create the first clinic administrator after importing the schema, then create clinics and doctors in the administrator dashboard.
 
-#### Clinic administrator login
+```sql
+INSERT INTO clinic_admin (username, password)
+VALUES ('your-admin-username', 'your-admin-password');
+```
+
+Doctors log in with their username or email, password, and the unique clinic code in `doctors.clinic_code`. Clinic administrators log in with their username and password.
+
+#### Current clinic administrator login
 
 | ID | Username | Password |
 | --- | --- | --- |
 | 1 | `clinicadmin` | `admin123` |
 
-#### Doctor login directory
+#### Current doctor login directory
 
 | ID | Doctor | Username | Email | Password | Clinic code | Specialist | Clinic | Status | Availability | Duration (minutes) | Clinic ID |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -117,8 +124,6 @@ These are the current records from the local MediAI database, checked on 12 Augu
 | 26 | Dr. Liya | `liya25` | `liya12345@gmail.com` | `liya25` | `BG007` | General Medicine | Bangi Healthcare | Active | Available | 15 | 6 |
 | 27 | Dr Shreya | `Shreya25` | `shreya@gmail.com` | `SHREYA25` | `PMC001` | Family Medicine | KL Prime Medical Centre | Active | Available | 15 | 16 |
 
-Keep this file private: it contains active login credentials. Do not commit it to a public repository. For a future production version, replace plaintext passwords with securely hashed passwords and remove passwords from this README.
-
 ## Security note
 
-Do not commit real database passwords, patient data, or production credentials. Configure database access with the environment variables above. Passwords should be stored as secure hashes before any production use.
+This README contains active account credentials; keep it private and never publish the repository. Do not commit database passwords or patient data. Before production use, implement secure password hashing and update the login code accordingly.
