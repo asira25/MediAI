@@ -663,11 +663,45 @@ def get_available_time_slots(
 @app.route('/get_available_slots')
 def get_available_slots():
 
-    doctor_id = request.args.get('doctor_id')
+    doctor_id_value = request.args.get('doctor_id', '').strip()
     selected_date = request.args.get('date')
+
+    if not doctor_id_value:
+        return jsonify({"error": "Doctor ID is required"}), 400
+
+    try:
+        doctor_id = int(doctor_id_value)
+    except ValueError:
+        return jsonify({"error": "Doctor ID must be a whole number"}), 400
+
+    if doctor_id <= 0:
+        return jsonify({"error": "Doctor ID must be a positive number"}), 400
 
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
+
+    # Validate the requested doctor and its clinic before reading clinic hours.
+    cursor.execute("SELECT clinic_id FROM doctors WHERE id=%s", (doctor_id,))
+    doctor = cursor.fetchone()
+
+    if not doctor:
+        conn.close()
+        return jsonify({"error": "Doctor not found"}), 404
+
+    if not doctor['clinic_id']:
+        conn.close()
+        return jsonify({"error": "Doctor is not assigned to a clinic"}), 404
+
+    cursor.execute("""
+        SELECT opening_time, closing_time
+        FROM clinics
+        WHERE id=%s
+    """, (doctor['clinic_id'],))
+    clinic = cursor.fetchone()
+
+    if not clinic:
+        conn.close()
+        return jsonify({"error": "Doctor's clinic not found"}), 404
 
     # Get appointments
     cursor.execute("""
@@ -676,15 +710,6 @@ def get_available_slots():
         WHERE date=%s
     """, (selected_date,))
     appointments = cursor.fetchall()
-
-    # Get doctor's clinic operating hours
-    cursor.execute("""
-        SELECT c.opening_time, c.closing_time
-        FROM doctors d
-        JOIN clinics c ON d.clinic_id = c.id
-        WHERE d.id=%s
-    """, (doctor_id,))
-    clinic = cursor.fetchone()
 
     available_slots = get_available_time_slots(
         doctor_id,
@@ -771,18 +796,61 @@ def register():
 
     if request.method == 'POST':
 
-        full_name = request.form['full_name']
-        age = request.form['age']
-        gender = request.form['gender']
-        contact_number = request.form['contact_number']
-        email = request.form['email']
-        address = request.form['address']
-        emergency_contact = request.form['emergency_contact']
-        allergies = request.form['allergies']
-        medical_history = request.form['medical_history']
-        username = request.form['username']
-        password = request.form['password']
-        confirm_password = request.form['confirm_password']
+        full_name = request.form.get('full_name', '').strip()
+        age = request.form.get('age', '').strip()
+        gender = request.form.get('gender', '').strip()
+        contact_number = request.form.get('contact_number', '').strip()
+        email = request.form.get('email', '').strip()
+        address = request.form.get('address', '').strip()
+        emergency_contact = request.form.get('emergency_contact', '').strip()
+        allergies = request.form.get('allergies', '').strip()
+        medical_history = request.form.get('medical_history', '').strip()
+        username = request.form.get('username', '').strip()
+        password = request.form.get('password', '')
+        confirm_password = request.form.get('confirm_password', '')
+
+        required_fields = {
+            'Full name': full_name,
+            'Age': age,
+            'Gender': gender,
+            'Contact number': contact_number,
+            'Email': email,
+            'Address': address,
+            'Emergency contact': emergency_contact,
+            'Username': username,
+            'Password': password,
+            'Password confirmation': confirm_password,
+        }
+        missing_field = next(
+            (name for name, value in required_fields.items() if not value),
+            None
+        )
+        if missing_field:
+            flash(f"{missing_field} is required.", "danger")
+            return render_template('patient_register.html')
+
+        try:
+            age = int(age)
+        except ValueError:
+            flash("Age must be a whole number.", "danger")
+            return render_template('patient_register.html')
+
+        if not 0 <= age <= 120:
+            flash("Age must be between 0 and 120.", "danger")
+            return render_template('patient_register.html')
+
+        if not re.fullmatch(r'[^@\s]+@[^@\s]+\.[^@\s]+', email):
+            flash("Please enter a valid email address.", "danger")
+            return render_template('patient_register.html')
+
+        phone_pattern = r'[0-9+()\-\s]{7,20}'
+        if not re.fullmatch(phone_pattern, contact_number):
+            flash("Please enter a valid contact number.", "danger")
+            return render_template('patient_register.html')
+
+        if not re.fullmatch(phone_pattern, emergency_contact):
+            flash("Please enter a valid emergency contact number.", "danger")
+            return render_template('patient_register.html')
 
         if password != confirm_password:
             flash("Passwords do not match!", "danger")
@@ -3512,6 +3580,11 @@ def cancel_appointment(appointment_id):
 
         return redirect(url_for('patient_dashboard'))
 
+    if appointment['status'] not in ('Booked', 'Waiting'):
+        conn.close()
+        flash("Only booked or waiting appointments can be cancelled.", "warning")
+        return redirect(url_for('patient_dashboard'))
+
     # =========================
     # CANCEL APPOINTMENT
     # =========================
@@ -3522,12 +3595,21 @@ def cancel_appointment(appointment_id):
         SET status='Cancelled'
 
         WHERE id=%s
+        AND patient_id=%s
+        AND status IN ('Booked', 'Waiting')
 
     """, (
 
         appointment_id,
+        patient_id,
 
     ))
+
+    if cursor.rowcount != 1:
+        conn.rollback()
+        conn.close()
+        flash("This appointment is no longer available for cancellation.", "warning")
+        return redirect(url_for('patient_dashboard'))
 
     refresh_queue_numbers(cursor, appointment['doctor_id'], appointment['date'])
 
@@ -5926,6 +6008,10 @@ def edit_clinic(id):
         closing_time = request.form["closing_time"]
         status = request.form["status"]
 
+        if not opening_time or not closing_time or opening_time >= closing_time:
+            conn.close()
+            return "Closing time must be after opening time.", 400
+
         cursor.execute("""
 
             UPDATE clinics
@@ -6036,6 +6122,9 @@ def add_clinic():
         opening_time = request.form['opening_time']
         closing_time = request.form['closing_time']
         status = request.form['status']
+
+        if not opening_time or not closing_time or opening_time >= closing_time:
+            return "Closing time must be after opening time.", 400
 
         conn = get_db_connection()
         cursor = conn.cursor()
@@ -6185,6 +6274,10 @@ def edit_operating_hours(id):
 
         opening_time = request.form["opening_time"]
         closing_time = request.form["closing_time"]
+
+        if not opening_time or not closing_time or opening_time >= closing_time:
+            conn.close()
+            return "Closing time must be after opening time.", 400
 
         cursor.execute("""
 
