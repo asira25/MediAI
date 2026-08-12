@@ -25,6 +25,15 @@ from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_RIGHT
 app = Flask(__name__)
 CORS(app)
 app.secret_key = os.getenv("MEDIAI_SECRET_KEY", "mediai_secret_key")
+# Doctor sessions are persistent and remain valid for eight hours.  Flask
+# refreshes this lifetime whenever the doctor makes a request (including the
+# dashboard refresh), so an active consultation is not interrupted.
+app.config.update(
+    PERMANENT_SESSION_LIFETIME=timedelta(hours=8),
+    SESSION_REFRESH_EACH_REQUEST=True,
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE='Lax',
+)
 
 # =========================
 # BACKGROUND SCHEDULER
@@ -32,7 +41,20 @@ app.secret_key = os.getenv("MEDIAI_SECRET_KEY", "mediai_secret_key")
 # APScheduler instance for automatic appointment status updates
 # Runs every 1 minute to update appointment statuses without user interaction
 scheduler = BackgroundScheduler()
-scheduler.start()
+
+
+def start_scheduler():
+    """Start the scheduler once in the serving process only."""
+    if scheduler.running:
+        return
+
+    # Flask's debug reloader starts a parent process and a child process.  The
+    # parent must not run background jobs, otherwise appointment updates run
+    # twice during local development.
+    if __name__ == '__main__' and os.environ.get('WERKZEUG_RUN_MAIN') != 'true':
+        return
+
+    scheduler.start()
 
 # Shut down the scheduler when exiting the app
 def shutdown_scheduler():
@@ -664,7 +686,7 @@ def get_available_time_slots(
 def get_available_slots():
 
     doctor_id_value = request.args.get('doctor_id', '').strip()
-    selected_date = request.args.get('date')
+    selected_date = request.args.get('date', '').strip()
 
     if not doctor_id_value:
         return jsonify({"error": "Doctor ID is required"}), 400
@@ -677,11 +699,26 @@ def get_available_slots():
     if doctor_id <= 0:
         return jsonify({"error": "Doctor ID must be a positive number"}), 400
 
+    if not selected_date:
+        return jsonify({"error": "Appointment date is required"}), 400
+
+    try:
+        requested_date = datetime.strptime(selected_date, '%Y-%m-%d').date()
+    except ValueError:
+        return jsonify({"error": "Appointment date must use YYYY-MM-DD format"}), 400
+
+    if requested_date < datetime.now().date():
+        return jsonify({"error": "Appointment date cannot be in the past"}), 400
+
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
 
     # Validate the requested doctor and its clinic before reading clinic hours.
-    cursor.execute("SELECT clinic_id FROM doctors WHERE id=%s", (doctor_id,))
+    cursor.execute("""
+        SELECT clinic_id, status, availability
+        FROM doctors
+        WHERE id=%s
+    """, (doctor_id,))
     doctor = cursor.fetchone()
 
     if not doctor:
@@ -692,8 +729,16 @@ def get_available_slots():
         conn.close()
         return jsonify({"error": "Doctor is not assigned to a clinic"}), 404
 
+    if doctor['status'] != 'Active':
+        conn.close()
+        return jsonify({"error": "Doctor is not active for booking", "available_slots": []}), 409
+
+    if doctor['availability'] != 'Available':
+        conn.close()
+        return jsonify({"error": "Doctor is currently unavailable", "available_slots": []}), 409
+
     cursor.execute("""
-        SELECT opening_time, closing_time
+        SELECT opening_time, closing_time, status
         FROM clinics
         WHERE id=%s
     """, (doctor['clinic_id'],))
@@ -702,6 +747,14 @@ def get_available_slots():
     if not clinic:
         conn.close()
         return jsonify({"error": "Doctor's clinic not found"}), 404
+
+    if clinic['status'] != 'Open':
+        conn.close()
+        return jsonify({"error": "Clinic is not open for booking", "available_slots": []}), 409
+
+    if not clinic['opening_time'] or not clinic['closing_time']:
+        conn.close()
+        return jsonify({"error": "Clinic operating hours are not configured", "available_slots": []}), 409
 
     # Get appointments
     cursor.execute("""
@@ -952,6 +1005,7 @@ def patient_login():
 
         if patient:
 
+            session.permanent = True
             session['patient_id'] = patient['id']
 
             session['patient_name'] = patient['full_name']
@@ -1563,6 +1617,9 @@ def doctor_login():
 
         if doctor:
 
+            # Without this, Flask creates a browser-session cookie which can
+            # disappear when the browser restores or replaces a tab.
+            session.permanent = True
             session['doctor_id'] = doctor['id']
 
             session['doctor_name'] = doctor['name']
@@ -2841,6 +2898,16 @@ def confirm_booking():
     conn = get_db_connection()
 
     cursor = conn.cursor(dictionary=True)
+    conn.start_transaction()
+
+    # Lock this doctor for the duration of the booking transaction.  Requests
+    # for the same doctor are serialized before the active-slot check below.
+    cursor.execute("SELECT id FROM doctors WHERE id=%s FOR UPDATE", (doctor_id,))
+    if not cursor.fetchone():
+        conn.rollback()
+        conn.close()
+        flash("Doctor not found.", "danger")
+        return redirect(url_for("booking"))
 
     # =========================
     # GET CLINIC ID
@@ -3412,6 +3479,22 @@ def confirm_booking():
     # =========================
     # INSERT APPOINTMENT
     # =========================
+
+    cursor.execute("""
+        SELECT id
+        FROM appointments
+        WHERE doctor_id=%s
+          AND date=%s
+          AND time=%s
+          AND status IN ('Booked', 'Waiting', 'In-Consultation')
+        LIMIT 1
+    """, (doctor_id, selected_date, selected_time))
+
+    if cursor.fetchone():
+        conn.rollback()
+        conn.close()
+        flash("This appointment slot is no longer available. Please choose another time.", "warning")
+        return redirect(url_for("booking"))
     
 
     cursor.execute("""
@@ -3457,7 +3540,6 @@ def confirm_booking():
 
     ))
 
-    conn.commit()
     appointment_id = cursor.lastrowid
 
     # The appointment ID is the final deterministic tie-breaker, so assign all
@@ -3469,7 +3551,6 @@ def confirm_booking():
     wait_time_minutes = round(patients_ahead * consultation_duration * multiplier) if patients_ahead else 0
     wait_time = f"{wait_time_minutes} minutes"
     cursor.execute("UPDATE appointments SET wait_time=%s WHERE id=%s", (wait_time, appointment_id))
-    conn.commit()
 
     # =========================
     # CREATE NOTIFICATION
@@ -5382,6 +5463,7 @@ def clinic_login():
 
         if admin:
 
+            session.permanent = True
             session['clinic_admin_id'] = admin['id']
 
             return redirect(
@@ -7433,4 +7515,5 @@ def logout():
 # =========================
 if __name__ == '__main__':
 
-    app.run(debug=True)
+    start_scheduler()
+    app.run(debug=os.getenv('FLASK_DEBUG', '').lower() in ('1', 'true', 'yes'))

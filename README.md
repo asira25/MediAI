@@ -51,6 +51,8 @@ MediAI is a Flask web application for managing clinic appointments, patient tria
    $env:MEDIAI_DB_PASSWORD = "your-password"
    $env:MEDIAI_DB_NAME = "mediai"
    $env:MEDIAI_SECRET_KEY = "a-long-random-secret"
+   # Optional: run the development debugger/reloader only while developing.
+   $env:FLASK_DEBUG = "1"
    ```
 
 5. Start the application.
@@ -60,6 +62,10 @@ MediAI is a Flask web application for managing clinic appointments, patient tria
    ```
 
 Open the local address printed by Flask in your browser.
+
+Keep `MEDIAI_SECRET_KEY` unchanged after the application is deployed. Changing
+it invalidates every active login. Doctor, patient, and clinic-administrator
+sessions persist for eight hours and are refreshed while active.
 
 ## Database
 
